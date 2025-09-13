@@ -205,7 +205,7 @@ struct HomeView: View {
         guard !text.isEmpty else { return }
         
         // Set text for teleprompter
-        // (This functionality will be implemented later)
+        appState.teleprompterText = text
         
         // Switch to teleprompter view
         appState.selectedTab = .teleprompter

@@ -13,7 +13,7 @@ struct TeleprompterView: View {
     @EnvironmentObject private var bleManager: BLEManager
     
     @StateObject private var engine = TeleprompterEngine()
-    @State private var text: String = ""
+    @State private var text: String = ""  // Text content for the teleprompter
     @State private var isEditing: Bool = true
     @State private var showSettings: Bool = false
     @State private var mirrorText: Bool = false
@@ -83,6 +83,12 @@ struct TeleprompterView: View {
                 engine.usesMonospaceFont = appState.settings.usesMonospaceFont
                 engine.showCountdown = appState.settings.showCountdown
                 engine.countdownDuration = appState.settings.countdownDuration
+                
+                // Load text from app state if available
+                if !appState.teleprompterText.isEmpty {
+                    text = appState.teleprompterText
+                    appState.teleprompterText = ""  // Clear after using
+                }
                 
                 // Set completion callback
                 engine.onTextComplete = {

@@ -18,6 +18,7 @@ class AppState: ObservableObject {
     
     // Teleprompter status
     @Published var isTeleprompterActive: Bool = false
+    @Published var teleprompterText: String = ""
     
     // Settings
     @Published var settings: AppSettings = AppSettings.load()

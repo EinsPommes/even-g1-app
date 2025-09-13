@@ -161,7 +161,8 @@ struct TemplatesView: View {
                                     
                                     Button(action: {
                                         // Open in teleprompter
-                                        // TODO: Implement teleprompter call
+                                        appState.teleprompterText = template.body
+                                        appState.selectedTab = .teleprompter
                                     }) {
                                         Label("Open in Teleprompter", systemImage: "text.viewfinder")
                                     }
