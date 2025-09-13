@@ -2,20 +2,19 @@
 //  ContentView.swift
 //  even-g1-app
 //
-//  Created by Jannik Kugler on 09.09.25.
+//  Created by oxo.mika on 09/09/2025.
 //
 
 import SwiftUI
 
 struct ContentView: View {
+    @StateObject private var appState = AppState()
+    @StateObject private var bleManager = BLEManager()
+    
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
-        }
-        .padding()
+        MainCoordinatorView()
+            .environmentObject(appState)
+            .environmentObject(bleManager)
     }
 }
 

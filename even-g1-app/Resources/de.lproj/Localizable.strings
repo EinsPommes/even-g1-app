@@ -1,0 +1,217 @@
+/* 
+  Localizable.strings
+  even-g1-app
+
+  Created by Jannik Kugler on 09.09.25.
+  
+*/
+
+// Allgemein
+"app_name" = "G1 OpenTeleprompter";
+"cancel" = "Abbrechen";
+"save" = "Speichern";
+"delete" = "Löschen";
+"edit" = "Bearbeiten";
+"done" = "Fertig";
+"send" = "Senden";
+"connect" = "Verbinden";
+"disconnect" = "Trennen";
+"search" = "Suchen";
+"no_results" = "Keine Ergebnisse";
+"error" = "Fehler";
+"success" = "Erfolg";
+"loading" = "Laden...";
+
+// Tabs
+"tab_home" = "Home";
+"tab_teleprompter" = "Teleprompter";
+"tab_devices" = "Geräte";
+"tab_templates" = "Vorlagen";
+"tab_settings" = "Einstellungen";
+
+// Home
+"quick_send" = "Schnell senden";
+"connected_devices" = "Verbundene Geräte";
+"no_devices_connected" = "Keine Geräte verbunden";
+"recent_templates" = "Letzte Vorlagen";
+"no_recent_templates" = "Keine kürzlich verwendeten Vorlagen";
+"show_all" = "Alle anzeigen";
+"start_teleprompter" = "Teleprompter starten";
+
+// Geräte
+"connected_devices" = "Verbundene Geräte";
+"available_devices" = "Verfügbare Geräte";
+"known_devices" = "Bekannte Geräte";
+"no_connected_devices" = "Keine verbundenen Geräte";
+"no_devices_found" = "Keine Geräte gefunden";
+"no_known_devices" = "Keine bekannten Geräte";
+"scanning" = "Suche nach Geräten...";
+"scan" = "Scannen";
+"stop" = "Stoppen";
+"connect_device" = "Gerät verbinden";
+"device_role" = "Rolle";
+"left" = "Links";
+"right" = "Rechts";
+"unknown" = "Unbekannt";
+"last_connected" = "Zuletzt: %@";
+"auto_reconnect" = "Automatisch verbinden";
+"remove" = "Entfernen";
+
+// Teleprompter
+"text_size" = "Schriftgröße";
+"line_spacing" = "Zeilenabstand";
+"monospace_font" = "Monospace-Schrift";
+"show_countdown" = "Countdown anzeigen";
+"countdown_duration" = "Dauer: %d Sekunden";
+"clear" = "Löschen";
+"send_to_glasses" = "An Brille senden";
+"mirror_text" = "Text spiegeln";
+"invert_colors" = "Farben invertieren";
+"teleprompter_settings" = "Teleprompter-Einstellungen";
+
+// Vorlagen
+"favorites" = "Favoriten";
+"tags" = "Tags";
+"filter_tags" = "Tags filtern";
+"no_templates_found" = "Keine Vorlagen gefunden";
+"reset_filters" = "Filter zurücksetzen";
+"create_first_template" = "Erste Vorlage erstellen";
+"duplicate" = "Duplizieren";
+"open_in_teleprompter" = "Im Teleprompter öffnen";
+"new_template" = "Neue Vorlage";
+"edit_template" = "Vorlage bearbeiten";
+"template_title" = "Titel der Vorlage";
+"template_text" = "Text";
+"add_tag" = "Tag hinzufügen";
+"mark_as_favorite" = "Als Favorit markieren";
+"no_tags" = "Keine Tags";
+"add_tag_title" = "Tag hinzufügen";
+"new_tag" = "Neuer Tag";
+"add" = "Hinzufügen";
+"search_templates" = "Vorlagen durchsuchen";
+"search_tags" = "Tags suchen";
+
+// Einstellungen
+"bluetooth" = "Bluetooth";
+"active_profile" = "Aktives Profil";
+"create_new_profile" = "Neues Profil erstellen";
+"edit_active_profile" = "Aktives Profil bearbeiten";
+"scan_timeout" = "Scan-Timeout";
+"seconds" = "Sekunden";
+"default_speed" = "Standard-Geschwindigkeit";
+"appearance" = "Erscheinungsbild";
+"system" = "System";
+"light" = "Hell";
+"dark" = "Dunkel";
+"voice_input" = "Spracheingabe aktivieren";
+"background_mode" = "Hintergrundmodus aktivieren";
+"widgets" = "Widgets aktivieren";
+"live_activities" = "Live-Aktivitäten aktivieren";
+"diagnostics" = "Diagnose";
+"verbose_logging" = "Ausführliches Logging";
+"log_retention" = "Log-Aufbewahrung";
+"day" = "Tag";
+"days" = "Tage";
+"unlimited" = "Unbegrenzt";
+"ble_inspector" = "BLE-Inspector";
+"export_logs" = "Logs exportieren";
+"clear_logs" = "Logs löschen";
+"about" = "Über";
+"version" = "Version";
+"build" = "Build";
+"source_code" = "Quellcode auf GitHub";
+"send_feedback" = "Feedback senden";
+"cloud_sync" = "Cloud-Synchronisierung";
+
+// Profil-Editor
+"profile_info" = "Profil-Informationen";
+"ble_config" = "BLE-Konfiguration";
+"service_uuid" = "Service UUID";
+"tx_characteristic" = "TX Characteristic UUID";
+"rx_characteristic" = "RX Characteristic UUID (optional)";
+"write_mode" = "Schreibmodus";
+"with_response" = "Mit Antwort";
+"without_response" = "Ohne Antwort";
+"encoding" = "Kodierung";
+"utf8_text" = "UTF-8 Text";
+"hex" = "Hexadezimal";
+"bytes" = "Byte-Array";
+"framing" = "Paketierung";
+"use_framing" = "Paketierung verwenden";
+"start_bytes" = "Start-Bytes (Hex)";
+"end_bytes" = "End-Bytes (Hex)";
+"max_packet_size" = "Max. Paketgröße";
+"commands" = "Befehle";
+"no_commands" = "Keine Befehle definiert";
+"add_command" = "Befehl hinzufügen";
+"edit_command" = "Befehl bearbeiten";
+"new_command" = "Neuer Befehl";
+"command_name" = "Name (z.B. SEND_TEXT)";
+"command_template" = "Vorlage";
+"command_description" = "Beschreibung";
+"placeholder_hint" = "Verwende {parameter} für Platzhalter";
+
+// BLE-Inspector
+"status" = "Status";
+"scanning" = "Scanning";
+"yes" = "Ja";
+"no" = "Nein";
+"last_error" = "Letzter Fehler";
+"ble_status" = "Bluetooth-Status";
+"powered_on" = "Eingeschaltet";
+"powered_off" = "Ausgeschaltet";
+"resetting" = "Zurücksetzen";
+"unauthorized" = "Nicht autorisiert";
+"unsupported" = "Nicht unterstützt";
+"unknown" = "Unbekannt";
+"role" = "Rolle";
+"battery" = "Batterie";
+"rssi" = "RSSI";
+"no_active_profile" = "Kein aktives Profil";
+"framing_yes" = "Paketierung: Ja";
+"framing_no" = "Paketierung: Nein";
+
+// Share Extension
+"share_to_g1" = "An G1-Brille senden";
+"save_as_template" = "Als Vorlage speichern";
+"save_template_title" = "Als Vorlage speichern";
+"save_template_message" = "Gib einen Titel für die Vorlage ein";
+"template_saved" = "Vorlage gespeichert";
+"template_saved_message" = "Die Vorlage wurde erfolgreich gespeichert.";
+
+// Fehler
+"error_bluetooth_off" = "Bluetooth ist ausgeschaltet";
+"error_bluetooth_unauthorized" = "Bluetooth-Berechtigung nicht erteilt";
+"error_bluetooth_unsupported" = "Bluetooth wird auf diesem Gerät nicht unterstützt";
+"error_connection_failed" = "Verbindung zum Gerät fehlgeschlagen";
+"error_service_not_found" = "BLE-Service nicht gefunden";
+"error_characteristic_not_found" = "BLE-Characteristic nicht gefunden";
+"error_write" = "Fehler beim Schreiben von Daten";
+"error_read" = "Fehler beim Lesen von Daten";
+"error_notify" = "Fehler bei Benachrichtigungen";
+"error_no_active_session" = "Keine aktive BLE-Sitzung";
+"error_encoding" = "Fehler bei der Datenkodierung";
+"error_timeout" = "Zeitüberschreitung bei BLE-Operation";
+
+// Widgets
+"widget_connection_name" = "G1 Verbindungsstatus";
+"widget_connection_description" = "Zeigt den aktuellen Verbindungsstatus der G1-Brillen an.";
+"widget_quicksend_name" = "Schnelles Senden";
+"widget_quicksend_description" = "Sende schnell Vorlagen an deine G1-Brillen.";
+"g1_status" = "G1 Status";
+
+// App Intents
+"intent_send_template" = "Vorlage an G1 senden";
+"intent_send_template_description" = "Sendet eine gespeicherte Vorlage an die G1-Brille";
+"intent_start_teleprompter" = "Teleprompter starten";
+"intent_start_teleprompter_description" = "Startet den Teleprompter mit einer Vorlage oder benutzerdefiniertem Text";
+"intent_connect_devices" = "Mit G1-Brillen verbinden";
+"intent_connect_devices_description" = "Verbindet mit bekannten G1-Brillen";
+"template_entity" = "Vorlage";
+"device_role_enum" = "Brillentyp";
+"left_glasses" = "Linke Brille";
+"right_glasses" = "Rechte Brille";
+"all_glasses" = "Alle Brillen";
+
+// Live Activity
+"progress" = "Fortschritt";
