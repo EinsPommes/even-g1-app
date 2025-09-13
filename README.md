@@ -1,56 +1,56 @@
 # G1 OpenTeleprompter iOS
 
-Eine Open-Source-Companion-App für Even Reality G1 Smart-Glasses. Diese App ermöglicht das Senden von Textbotschaften an die G1-Brille über Bluetooth LE, mit Unterstützung für Teleprompter-Funktionen, Vorlagen und mehr.
+An open-source companion app for Even Reality G1 Smart Glasses. This app lets you send text messages to G1 glasses via Bluetooth LE, with support for teleprompter functions, templates, and more.
 
 ## Features
 
-### Bluetooth LE Kommunikation
-- Scannen, Verbinden und Verwalten von G1-Brillen
-- Gleichzeitige Verbindung zu linker und rechter Brille
-- Automatische Wiederverbindung mit bekannten Geräten
-- Konfigurierbare BLE-Profile für verschiedene Protokolle
+### Bluetooth LE Communication
+- Scan, connect, and manage G1 glasses
+- Simultaneous connection to left and right glasses
+- Auto-reconnect to known devices
+- Configurable BLE profiles for different protocols
 
 ### Teleprompter
-- Textscrolling mit einstellbarer Geschwindigkeit
-- Pausenmarker (///)
-- Spiegelung und Invertierung
-- Countdown-Timer vor Start
+- Text scrolling with adjustable speed
+- Pause markers (///)
+- Mirroring and inversion
+- Countdown timer before start
 
-### Vorlagen
-- Speichern und Verwalten von Textvorlagen
-- Tagging und Favoriten
-- CloudKit-Synchronisierung
-- Platzhalter für dynamische Inhalte
+### Templates
+- Save and manage text templates
+- Tagging and favorites
+- CloudKit synchronization
+- Placeholders for dynamic content
 
-### Weitere Features
-- Diagnose-Tools für BLE-Verbindungen
-- Siri-Shortcuts und App-Intents
-- Widgets für schnellen Zugriff
-- Live-Activities für Teleprompter-Steuerung
-- Spracheingabe für Text
+### Additional Features
+- Diagnostic tools for BLE connections
+- Siri Shortcuts and App Intents
+- Widgets for quick access
+- Live Activities for teleprompter control
+- Voice input for text
 
-## Einrichtung
+## Setup
 
-### Voraussetzungen
-- iOS 17.0 oder höher
-- Xcode 15.0 oder höher
-- Even Reality G1 Smart-Glasses (bereits mit der offiziellen Even-App gekoppelt)
+### Requirements
+- iOS 17.0 or higher
+- Xcode 15.0 or higher
+- Even Reality G1 Smart Glasses (already paired with the official Even app)
 
 ### Installation
-1. Klone das Repository
-2. Öffne `even-g1-app.xcodeproj` in Xcode
-3. Wähle dein Entwicklerzertifikat
-4. Baue und starte die App auf deinem Gerät
+1. Clone the repository
+2. Open `even-g1-app.xcodeproj` in Xcode
+3. Select your developer certificate
+4. Build and run the app on your device
 
-## BLE-Protokoll
+## BLE Protocol
 
-Die App verwendet ein konfigurierbares BLE-Protokoll, um mit den G1-Brillen zu kommunizieren. Das Standardprofil ist für die G1 vorkonfiguriert, kann aber bei Bedarf angepasst werden.
+The app uses a configurable BLE protocol to communicate with G1 glasses. The default profile is pre-configured for G1 but can be customized if needed.
 
-### Beispiel-Protokollprofil
+### Example Protocol Profile
 
 ```json
 {
-  "name": "Standard G1 Profil",
+  "name": "Standard G1 Profile",
   "serviceUUID": "6E400001-B5A3-F393-E0A9-E50E24DCCA9E",
   "txCharacteristic": "6E400002-B5A3-F393-E0A9-E50E24DCCA9E",
   "rxCharacteristic": "6E400003-B5A3-F393-E0A9-E50E24DCCA9E",
@@ -59,41 +59,41 @@ Die App verwendet ein konfigurierbares BLE-Protokoll, um mit den G1-Brillen zu k
   "commands": {
     "SEND_TEXT": {
       "template": "{text}",
-      "description": "Text an Brille senden"
+      "description": "Send text to glasses"
     },
     "CLEAR": {
       "template": "CLEAR",
-      "description": "Display löschen"
+      "description": "Clear display"
     }
   }
 }
 ```
 
-## Fehlerbehebung
+## Troubleshooting
 
-### Bluetooth-Verbindungsprobleme
-- Stelle sicher, dass die G1-Brille eingeschaltet und im Verbindungsmodus ist
-- Vergewissere dich, dass die Brille bereits mit der offiziellen Even-App gekoppelt wurde
-- Überprüfe, ob Bluetooth auf deinem iOS-Gerät aktiviert ist
-- Versuche, die Brille neu zu starten
+### Bluetooth Connection Issues
+- Make sure G1 glasses are powered on and in connection mode
+- Verify that glasses have been paired with the official Even app
+- Check if Bluetooth is enabled on your iOS device
+- Try restarting the glasses
 
-### Hintergrundmodus
-- Aktiviere "Hintergrundmodus" in den Einstellungen
-- Stelle sicher, dass die App Bluetooth-Berechtigungen hat
-- Deaktiviere Energiesparfunktionen für die App in den iOS-Einstellungen
+### Background Mode
+- Enable "Background Mode" in settings
+- Ensure the app has Bluetooth permissions
+- Disable power-saving features for the app in iOS settings
 
 ### State Restoration
-- Bei Problemen mit der automatischen Wiederverbindung, versuche die App neu zu starten
-- Lösche bekannte Geräte und verbinde sie erneut
+- If auto-reconnection isn't working, try restarting the app
+- Delete known devices and reconnect them
 
-## Mitwirken
+## Contributing
 
-Beiträge zum Projekt sind willkommen! Bitte erstelle einen Pull Request oder ein Issue auf GitHub.
+Contributions to the project are welcome! Please create a pull request or issue on GitHub.
 
-## Lizenz
+## License
 
-Dieses Projekt ist unter der MIT-Lizenz veröffentlicht. Siehe LICENSE-Datei für Details.
+This project is released under the MIT License. See LICENSE file for details.
 
-## Kontakt
+## Contact
 
-Bei Fragen oder Feedback: [feedback@even-reality.com](mailto:feedback@even-reality.com)
+For questions or feedback: [feedback@even-reality.com](mailto:feedback@even-reality.com)
