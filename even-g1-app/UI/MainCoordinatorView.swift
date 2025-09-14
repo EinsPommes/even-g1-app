@@ -36,12 +36,6 @@ struct MainCoordinatorView: View {
                     Label(MainTab.templates.rawValue, systemImage: MainTab.templates.iconName)
                 }
                 .tag(MainTab.templates)
-                
-            FitnessDataView()
-                .tabItem {
-                    Label(MainTab.fitness.rawValue, systemImage: MainTab.fitness.iconName)
-                }
-                .tag(MainTab.fitness)
             
             SettingsView()
                 .tabItem {
@@ -66,10 +60,12 @@ struct MainCoordinatorView: View {
 struct HomeView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var bleManager: BLEManager
+    @EnvironmentObject private var fitnessManager: FitnessManager
     
     @State private var text = ""
     @State private var isSending = false
     @State private var lastSendResult: [UUID: Result<Void, Error>]?
+    @State private var showingFitnessView = false
     
     var body: some View {
         NavigationStack {
@@ -166,6 +162,102 @@ struct HomeView: View {
                         }
                     }
                     
+                    // Fitness data
+                    VStack(alignment: .leading) {
+                        HStack {
+                            Text("Fitness Data")
+                                .font(.headline)
+                            Spacer()
+                            Button(action: {
+                                showingFitnessView = true
+                            }) {
+                                Text("View All")
+                                    .font(.subheadline)
+                            }
+                        }
+                        
+                        if fitnessManager.isHealthKitAvailable && fitnessManager.isHealthKitAuthorized {
+                            HStack(spacing: 15) {
+                                // Heart Rate
+                                VStack {
+                                    Image(systemName: "heart.fill")
+                                        .foregroundColor(.red)
+                                    Text("\(Int(fitnessManager.heartRate))")
+                                        .font(.title2)
+                                        .fontWeight(.bold)
+                                    Text("BPM")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.secondary.opacity(0.1))
+                                .cornerRadius(8)
+                                
+                                // Steps
+                                VStack {
+                                    Image(systemName: "figure.walk")
+                                        .foregroundColor(.blue)
+                                    Text("\(fitnessManager.steps)")
+                                        .font(.title2)
+                                        .fontWeight(.bold)
+                                    Text("Steps")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.secondary.opacity(0.1))
+                                .cornerRadius(8)
+                                
+                                // Calories
+                                VStack {
+                                    Image(systemName: "flame.fill")
+                                        .foregroundColor(.orange)
+                                    Text("\(Int(fitnessManager.calories))")
+                                        .font(.title2)
+                                        .fontWeight(.bold)
+                                    Text("kcal")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.secondary.opacity(0.1))
+                                .cornerRadius(8)
+                            }
+                            
+                            // Send to glasses button
+                            if fitnessManager.heartRate > 0 && !bleManager.connectedDevices.isEmpty {
+                                Button(action: sendFitnessData) {
+                                    HStack {
+                                        Image(systemName: "heart.fill")
+                                        Text("Send Fitness Data to Glasses")
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                }
+                                .buttonStyle(.bordered)
+                            }
+                        } else {
+                            Button(action: {
+                                if fitnessManager.isHealthKitAvailable {
+                                    fitnessManager.requestHealthKitAuthorization()
+                                } else {
+                                    showingFitnessView = true
+                                }
+                            }) {
+                                HStack {
+                                    Image(systemName: "heart.fill")
+                                    Text(fitnessManager.isHealthKitAvailable ? 
+                                         "Enable Health Access" : 
+                                         "View Fitness Features")
+                                }
+                                .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+                    
                     // Start teleprompter
                     Button(action: startTeleprompter) {
                         HStack {
@@ -187,6 +279,20 @@ struct HomeView: View {
                     }) {
                         Image(systemName: "antenna.radiowaves.left.and.right")
                     }
+                }
+            }
+            .sheet(isPresented: $showingFitnessView) {
+                NavigationStack {
+                    FitnessDataView()
+                        .navigationTitle("Fitness")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .navigationBarLeading) {
+                                Button("Done") {
+                                    showingFitnessView = false
+                                }
+                            }
+                        }
                 }
             }
         }
@@ -215,6 +321,23 @@ struct HomeView: View {
         
         // Switch to teleprompter view
         appState.selectedTab = .teleprompter
+    }
+    
+    private func sendFitnessData() {
+        guard !bleManager.connectedDevices.isEmpty else { return }
+        
+        // Prepare text with fitness data
+        let fitnessText = """
+        Fitness Data:
+        Heart Rate: \(Int(fitnessManager.heartRate)) BPM (Zone \(fitnessManager.heartRateZone(for: fitnessManager.heartRate)))
+        Steps: \(fitnessManager.steps)
+        Calories: \(Int(fitnessManager.calories)) kcal
+        """
+        
+        // Send to glasses
+        Task {
+            _ = await bleManager.broadcastText(fitnessText)
+        }
     }
 }
 
