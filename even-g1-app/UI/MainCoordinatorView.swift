@@ -36,6 +36,12 @@ struct MainCoordinatorView: View {
                     Label(MainTab.templates.rawValue, systemImage: MainTab.templates.iconName)
                 }
                 .tag(MainTab.templates)
+                
+            FitnessDataView()
+                .tabItem {
+                    Label(MainTab.fitness.rawValue, systemImage: MainTab.fitness.iconName)
+                }
+                .tag(MainTab.fitness)
             
             SettingsView()
                 .tabItem {

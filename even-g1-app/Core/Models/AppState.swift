@@ -58,6 +58,7 @@ enum MainTab: String, CaseIterable, Identifiable {
     case teleprompter = "Teleprompter"
     case devices = "Devices"
     case templates = "Templates"
+    case fitness = "Fitness"
     case settings = "Settings"
     
     var id: String { self.rawValue }
@@ -68,6 +69,7 @@ enum MainTab: String, CaseIterable, Identifiable {
         case .teleprompter: return "text.viewfinder"
         case .devices: return "antenna.radiowaves.left.and.right"
         case .templates: return "doc.text"
+        case .fitness: return "heart.fill"
         case .settings: return "gear"
         }
     }

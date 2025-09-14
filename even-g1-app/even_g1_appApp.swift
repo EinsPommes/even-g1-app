@@ -10,17 +10,20 @@ import Combine
 import AppIntents
 import CoreBluetooth
 import UIKit
+import HealthKit
 
 @main
 struct G1OpenTeleprompterApp: App {
     @StateObject private var appState = AppState()
     @StateObject private var bleManager = BLEManager()
+    @StateObject private var fitnessManager = FitnessManager()
     
     var body: some Scene {
         WindowGroup {
             MainCoordinatorView()
                 .environmentObject(appState)
                 .environmentObject(bleManager)
+                .environmentObject(fitnessManager)
                 .onAppear {
                     setupAppearance()
                     

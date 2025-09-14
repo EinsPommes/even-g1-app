@@ -122,6 +122,10 @@ struct SettingsView: View {
                     Toggle("Enable Widgets", isOn: $settings.enableWidgets)
                     
                     Toggle("Enable Live Activities", isOn: $settings.enableLiveActivity)
+                    
+                    NavigationLink(destination: FitnessSettingsView()) {
+                        Text("Fitness Settings")
+                    }
                 }
                 
                 // Diagnostics settings
