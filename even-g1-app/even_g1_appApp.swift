@@ -27,9 +27,8 @@ struct G1OpenTeleprompterApp: App {
                 .onAppear {
                     setupAppearance()
                     
-                    // Add required permissions
-                    BLEInfoPlist.addBLEPermissions()
-                    FitnessInfoPlist.addHealthKitPermissions()
+                    // Permissions are now set in Info.plist directly
+                    // We don't need to add them programmatically anymore
                     
                     // Check for pending App Intents
                     AppIntentHandler.shared.checkForPendingIntents()

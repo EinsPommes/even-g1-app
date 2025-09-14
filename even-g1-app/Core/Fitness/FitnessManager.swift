@@ -65,8 +65,9 @@ class FitnessManager: ObservableObject {
             return
         }
         
-        // Ensure we have the necessary Info.plist entries
-        FitnessInfoPlist.addHealthKitPermissions()
+        // Info.plist entries should be already set
+        // We're not calling FitnessInfoPlist.addHealthKitPermissions() here anymore
+        // because we've added the entries directly to Info.plist
         
         // Define the health data types to read
         var typesToRead = Set<HKObjectType>()
@@ -150,16 +151,15 @@ class FitnessManager: ObservableObject {
             return
         }
         
-        // Enable background updates
-        do {
-            healthStore.enableBackgroundDelivery(for: heartRateType, frequency: .immediate) { [weak self] success, error in
-                if let error = error {
-                    self?.logger.error("Failed to enable heart rate background delivery: \(error.localizedDescription)")
-                }
+        // Enable background updates if needed
+        // This can cause issues if not properly set up, so we'll comment it out for now
+        /*
+        healthStore.enableBackgroundDelivery(for: heartRateType, frequency: .immediate) { [weak self] success, error in
+            if let error = error {
+                self?.logger.error("Failed to enable heart rate background delivery: \(error.localizedDescription)")
             }
-        } catch {
-            logger.error("Exception enabling background delivery: \(error.localizedDescription)")
         }
+        */
     }
     
     /// Fetches the latest heart rate reading
@@ -373,9 +373,10 @@ class FitnessManager: ObservableObject {
     
     /// Simulates heart rate updates for testing
     private func startSimulatedHeartRateUpdates() {
-        Timer.publish(every: 3, on: .main, in: .common)
-            .autoconnect()
-            .sink { [weak self] _ in
+        // Use DispatchQueue instead of Timer.publish to avoid potential threading issues
+        DispatchQueue.main.async {
+            // Start a repeating timer on the main thread
+            Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
                 guard let self = self else { return }
                 
                 // Generate realistic heart rate based on workout state
@@ -403,7 +404,7 @@ class FitnessManager: ObservableObject {
                 let variation = Double.random(in: -10...10)
                 self.heartRate = max(50, min(200, baseHeartRate + variation))
             }
-            .store(in: &cancellables)
+        }
     }
 }
 
