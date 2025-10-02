@@ -10,6 +10,21 @@ import CoreBluetooth
 import Combine
 import OSLog
 
+// Only accept BLE devices that are recognized as even g1 glasses
+private let EVEN_G1_SERVICE_UUID = CBUUID(string: "6E400001-B5A3-F393-E0A9-E50E24DCCA9E")
+
+private func isEvenG1Device(peripheral: CBPeripheral, advertisementData: [String: Any]) -> Bool {
+    // Check device name
+    if let name = peripheral.name?.lowercased(), name.contains("even g1") {
+        return true
+    }
+    // Check for advertised service UUID
+    if let serviceUUIDs = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] {
+        return serviceUUIDs.contains(EVEN_G1_SERVICE_UUID)
+    }
+    return false
+}
+
 // Manages Bluetooth connections
 class BLEManager: NSObject, ObservableObject {
     // MARK: - Properties
@@ -50,7 +65,7 @@ class BLEManager: NSObject, ObservableObject {
         
         // Dedicated queue for BLE operations
         let queue = DispatchQueue(label: "com.g1teleprompter.blequeue", qos: .userInitiated)
-        centralManager = CBCentralManager(delegate: self, queue: queue, options: options)                                                                         
+        centralManager = CBCentralManager(delegate: self, queue: queue, options: options)
         
         // Load saved devices and profiles
         loadKnownDevices()
@@ -295,16 +310,23 @@ extension BLEManager: CBCentralManagerDelegate {
             
         case .poweredOff:
             logger.warning("Bluetooth is turned off")
-            isScanning = false
-            lastError = BLEError.bluetoothPoweredOff
+            // Ensure UI updates are made on the main thread
+            DispatchQueue.main.async {
+                self.isScanning = false
+                self.lastError = BLEError.bluetoothPoweredOff
+            }
             
         case .unauthorized:
             logger.error("Bluetooth permission not granted")
-            lastError = BLEError.bluetoothUnauthorized
+            DispatchQueue.main.async {
+                self.lastError = BLEError.bluetoothUnauthorized
+            }
             
         case .unsupported:
             logger.error("Bluetooth is not supported on this device")
-            lastError = BLEError.bluetoothUnsupported
+            DispatchQueue.main.async {
+                self.lastError = BLEError.bluetoothUnsupported
+            }
             
         case .resetting:
             logger.warning("Bluetooth connection is being reset")
@@ -318,48 +340,54 @@ extension BLEManager: CBCentralManagerDelegate {
     }
     
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
-        // Ignore devices without names
-        guard let name = peripheral.name, !name.isEmpty else {
+        // Filter: Only allow even g1 glasses
+        guard isEvenG1Device(peripheral: peripheral, advertisementData: advertisementData) else {
             return
         }
         
-        // Check if the device has already been discovered
-        if !discoveredPeripherals.contains(where: { $0.identifier == peripheral.identifier }) {
-            logger.info("New device found: \(name), RSSI: \(RSSI.intValue) dBm")
-            discoveredPeripherals.append(peripheral)
-        }
-        
-        // Update RSSI for connected devices
-        if let index = connectedDevices.firstIndex(where: { $0.peripheral?.identifier == peripheral.identifier }) {
-            connectedDevices[index].rssi = RSSI.intValue
+        // Ensure UI updates are made on the main thread
+        DispatchQueue.main.async {
+            // Check if the device has already been discovered
+            if !self.discoveredPeripherals.contains(where: { $0.identifier == peripheral.identifier }) {
+                self.logger.info("New G1 device found: \(peripheral.name ?? "Unknown"), RSSI: \(RSSI.intValue) dBm")
+                self.discoveredPeripherals.append(peripheral)
+            }
+            
+            // Update RSSI for connected devices
+            if let index = self.connectedDevices.firstIndex(where: { $0.peripheral?.identifier == peripheral.identifier }) {
+                self.connectedDevices[index].rssi = RSSI.intValue
+            }
         }
     }
     
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         logger.info("Connected to device: \(peripheral.name ?? "Unknown")")
         
-        // Update the device status
-        if let index = connectedDevices.firstIndex(where: { $0.peripheral?.identifier == peripheral.identifier }) {
-            connectedDevices[index].isConnected = true
-            connectedDevices[index].isConnecting = false
-            
-            // Aktualisiere das KnownDevice
-            if let knownDeviceIndex = knownDevices.firstIndex(where: { $0.identifier == peripheral.identifier.uuidString }) {
-                knownDevices[knownDeviceIndex].lastConnected = Date()
-                saveKnownDevices()
-            }
-            
-            // Create a session for the device
-            let deviceId = connectedDevices[index].id
-            let session = BLEDeviceSession(peripheral: peripheral, deviceId: deviceId)
-            deviceSessions[deviceId] = session
-            
-            // Start the session
-            session.start(with: activeProfile)
-            
-            // Stop scanning when we're connected
-            if isScanning {
-                stopScan()
+        // Ensure UI updates are made on the main thread
+        DispatchQueue.main.async {
+            // Update the device status
+            if let index = self.connectedDevices.firstIndex(where: { $0.peripheral?.identifier == peripheral.identifier }) {
+                self.connectedDevices[index].isConnected = true
+                self.connectedDevices[index].isConnecting = false
+                
+                // Aktualisiere das KnownDevice
+                if let knownDeviceIndex = self.knownDevices.firstIndex(where: { $0.identifier == peripheral.identifier.uuidString }) {
+                    self.knownDevices[knownDeviceIndex].lastConnected = Date()
+                    self.saveKnownDevices()
+                }
+                
+                // Create a session for the device
+                let deviceId = self.connectedDevices[index].id
+                let session = BLEDeviceSession(peripheral: peripheral, deviceId: deviceId)
+                self.deviceSessions[deviceId] = session
+                
+                // Start the session
+                session.start(with: self.activeProfile)
+                
+                // Stop scanning when we're connected
+                if self.isScanning {
+                    self.stopScan()
+                }
             }
         }
     }
@@ -367,32 +395,39 @@ extension BLEManager: CBCentralManagerDelegate {
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
         logger.error("Connection to device failed: \(peripheral.name ?? "Unknown"), Error: \(error?.localizedDescription ?? "Unknown")")
         
-        // Update the device status
-        if let index = connectedDevices.firstIndex(where: { $0.peripheral?.identifier == peripheral.identifier }) {
-            connectedDevices[index].isConnected = false
-            connectedDevices[index].isConnecting = false
-            connectedDevices[index].lastError = error
+        // Ensure UI updates are made on the main thread
+        DispatchQueue.main.async {
+            // Update the device status
+            if let index = self.connectedDevices.firstIndex(where: { $0.peripheral?.identifier == peripheral.identifier }) {
+                self.connectedDevices[index].isConnected = false
+                self.connectedDevices[index].isConnecting = false
+                self.connectedDevices[index].lastError = error
+                
+                // Remove the device from the list
+                self.connectedDevices.remove(at: index)
+            }
             
-            // Remove the device from the list
-            connectedDevices.remove(at: index)
+            self.lastError = error ?? BLEError.connectionFailed
         }
-        
-        lastError = error ?? BLEError.connectionFailed
     }
     
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         logger.info("Disconnected from device: \(peripheral.name ?? "Unknown")")
         
-        // Update the device status
-        if let index = connectedDevices.firstIndex(where: { $0.peripheral?.identifier == peripheral.identifier }) {
-            connectedDevices[index].isConnected = false
-            connectedDevices[index].isConnecting = false
-            
-            // Remove the device from the list
-            connectedDevices.remove(at: index)
-            
-            // Remove the session
-            deviceSessions[connectedDevices[index].id] = nil
+        // Ensure UI updates are made on the main thread
+        DispatchQueue.main.async {
+            // Update the device status
+            if let index = self.connectedDevices.firstIndex(where: { $0.peripheral?.identifier == peripheral.identifier }) {
+                self.connectedDevices[index].isConnected = false
+                self.connectedDevices[index].isConnecting = false
+                
+                // Save device ID before removing
+                let deviceId = self.connectedDevices[index].id
+                self.connectedDevices.remove(at: index)
+                
+                // Remove the session safely
+                self.deviceSessions[deviceId] = nil
+            }
         }
         
         // Try to automatically reconnect if an error occurred
@@ -412,15 +447,18 @@ extension BLEManager: CBCentralManagerDelegate {
             for peripheral in peripherals {
                 logger.info("Restoring device: \(peripheral.name ?? "Unknown")")
                 
-                // Check if the device is known
-                if let knownDevice = knownDevices.first(where: { $0.identifier == peripheral.identifier.uuidString }) {
-                    // Create DeviceStatus and add it to the list
-                    let deviceStatus = BLEDeviceStatus(knownDevice: knownDevice, peripheral: peripheral)
-                    deviceStatus.isConnecting = true
-                    connectedDevices.append(deviceStatus)
-                    
-                    // Reconnect to the device
-                    centralManager.connect(peripheral, options: nil)
+                // Ensure UI updates are made on the main thread
+                DispatchQueue.main.async {
+                    // Check if the device is known
+                    if let knownDevice = self.knownDevices.first(where: { $0.identifier == peripheral.identifier.uuidString }) {
+                        // Create DeviceStatus and add it to the list
+                        let deviceStatus = BLEDeviceStatus(knownDevice: knownDevice, peripheral: peripheral)
+                        deviceStatus.isConnecting = true
+                        self.connectedDevices.append(deviceStatus)
+                        
+                        // Reconnect to the device
+                        self.centralManager.connect(peripheral, options: nil)
+                    }
                 }
             }
         }
@@ -475,3 +513,4 @@ enum BLEError: Error, LocalizedError {
         }
     }
 }
+
