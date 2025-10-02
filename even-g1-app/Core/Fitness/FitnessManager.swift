@@ -9,7 +9,6 @@ import Foundation
 import HealthKit
 import Combine
 import os.log
-import UIKit
 
 /// Manages fitness data 
 class FitnessManager: ObservableObject {
@@ -50,53 +49,17 @@ class FitnessManager: ObservableObject {
     func requestHealthKitAuthorization() {
         guard isHealthKitAvailable else {
             logger.warning("HealthKit is not available on this device")
-            
-            // Show an alert to inform the user
-            DispatchQueue.main.async {
-                let rootViewController = UIApplication.shared.windows.first?.rootViewController
-                let alert = UIAlertController(
-                    title: "HealthKit Not Available",
-                    message: "This device doesn't support HealthKit. Some fitness features will be limited.",
-                    preferredStyle: .alert
-                )
-                alert.addAction(UIAlertAction(title: "OK", style: .default))
-                rootViewController?.present(alert, animated: true)
-            }
             return
         }
-        
-        // Info.plist entries should be already set
-        // We're not calling FitnessInfoPlist.addHealthKitPermissions() here anymore
-        // because we've added the entries directly to Info.plist
         
         // Define the health data types to read
-        var typesToRead = Set<HKObjectType>()
-        
-        // Safely add quantity types
-        if let heartRateType = HKObjectType.quantityType(forIdentifier: .heartRate) {
-            typesToRead.insert(heartRateType)
-        }
-        
-        if let stepCountType = HKObjectType.quantityType(forIdentifier: .stepCount) {
-            typesToRead.insert(stepCountType)
-        }
-        
-        if let caloriesType = HKObjectType.quantityType(forIdentifier: .activeEnergyBurned) {
-            typesToRead.insert(caloriesType)
-        }
-        
-        if let distanceType = HKObjectType.quantityType(forIdentifier: .distanceWalkingRunning) {
-            typesToRead.insert(distanceType)
-        }
-        
-        // Add workout type
-        typesToRead.insert(HKObjectType.workoutType())
-        
-        // Check if we have any types to request
-        guard !typesToRead.isEmpty else {
-            logger.error("No valid HealthKit data types available to request")
-            return
-        }
+        let typesToRead: Set<HKObjectType> = [
+            HKObjectType.quantityType(forIdentifier: .heartRate)!,
+            HKObjectType.quantityType(forIdentifier: .stepCount)!,
+            HKObjectType.quantityType(forIdentifier: .activeEnergyBurned)!,
+            HKObjectType.quantityType(forIdentifier: .distanceWalkingRunning)!,
+            HKObjectType.workoutType()
+        ]
         
         // Request authorization
         healthStore.requestAuthorization(toShare: nil, read: typesToRead) { [weak self] success, error in
@@ -126,12 +89,8 @@ class FitnessManager: ObservableObject {
     
     /// Sets up a streaming query for heart rate updates
     private func startHeartRateQuery() {
-        guard let heartRateType = HKObjectType.quantityType(forIdentifier: .heartRate) else { 
-            logger.warning("Heart rate type not available")
-            return 
-        }
+        guard let heartRateType = HKObjectType.quantityType(forIdentifier: .heartRate) else { return }
         
-        // Create a query that observes updates to heart rate data
         let query = HKObserverQuery(sampleType: heartRateType, predicate: nil) { [weak self] query, completionHandler, error in
             if let error = error {
                 self?.logger.error("Heart rate observer error: \(error.localizedDescription)")
@@ -143,43 +102,23 @@ class FitnessManager: ObservableObject {
             completionHandler()
         }
         
-        // Execute the query
-        do {
-            try healthStore.execute(query)
-        } catch {
-            logger.error("Failed to execute heart rate query: \(error.localizedDescription)")
-            return
-        }
-        
-        // Enable background updates if needed
-        // This can cause issues if not properly set up, so we'll comment it out for now
-        /*
-        healthStore.enableBackgroundDelivery(for: heartRateType, frequency: .immediate) { [weak self] success, error in
+        healthStore.execute(query)
+        healthStore.enableBackgroundDelivery(for: heartRateType, frequency: .immediate) { success, error in
             if let error = error {
-                self?.logger.error("Failed to enable heart rate background delivery: \(error.localizedDescription)")
+                self.logger.error("Failed to enable heart rate background delivery: \(error.localizedDescription)")
             }
         }
-        */
     }
     
     /// Fetches the latest heart rate reading
     private func fetchLatestHeartRate() {
-        guard let heartRateType = HKObjectType.quantityType(forIdentifier: .heartRate) else {
-            logger.warning("Heart rate type not available")
-            return
-        }
+        guard let heartRateType = HKObjectType.quantityType(forIdentifier: .heartRate) else { return }
         
         let predicate = HKQuery.predicateForSamples(withStart: Date().addingTimeInterval(-60), end: nil, options: .strictStartDate)
         let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)
         
         let query = HKSampleQuery(sampleType: heartRateType, predicate: predicate, limit: 1, sortDescriptors: [sortDescriptor]) { [weak self] query, samples, error in
-            if let error = error {
-                self?.logger.error("Heart rate query error: \(error.localizedDescription)")
-                return
-            }
-            
             guard let samples = samples as? [HKQuantitySample], let sample = samples.first else {
-                self?.logger.debug("No heart rate samples available")
                 return
             }
             
@@ -190,11 +129,7 @@ class FitnessManager: ObservableObject {
             }
         }
         
-        do {
-            try healthStore.execute(query)
-        } catch {
-            logger.error("Failed to execute heart rate fetch query: \(error.localizedDescription)")
-        }
+        healthStore.execute(query)
     }
     
     /// Sets up a streaming query for step count updates

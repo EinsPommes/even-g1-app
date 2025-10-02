@@ -65,16 +65,67 @@ struct HomeView: View {
     @State private var text = ""
     @State private var isSending = false
     @State private var lastSendResult: [UUID: Result<Void, Error>]?
-    @State private var showingFitnessView = false
+    @State private var showingFitnessData = false
+    @State private var showingTemplatesPicker = false
     
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    // Quick send section
-                    VStack(alignment: .leading) {
-                        Text("Quick Send")
-                            .font(.headline)
+                    // Header with app logo and connection status
+                    HStack {
+                        Image(systemName: "eyeglasses")
+                            .font(.system(size: 28))
+                            .foregroundColor(.accentColor)
+                        
+                        VStack(alignment: .leading) {
+                            Text("G1 OpenTeleprompter")
+                                .font(.headline)
+                            
+                            HStack {
+                                Circle()
+                                    .fill(!bleManager.connectedDevices.isEmpty ? Color.green : Color.red)
+                                    .frame(width: 8, height: 8)
+                                
+                                Text(!bleManager.connectedDevices.isEmpty ? "Connected" : "Not Connected")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        
+                        Spacer()
+                        
+                        Button(action: {
+                            appState.selectedTab = .devices
+                        }) {
+                            Image(systemName: "antenna.radiowaves.left.and.right")
+                                .font(.system(size: 22))
+                                .foregroundColor(.accentColor)
+                        }
+                    }
+                    .padding()
+                    .background(Color.secondary.opacity(0.05))
+                    .cornerRadius(12)
+                    
+                    // Quick send section with improved styling
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Text("Quick Send")
+                                .font(.headline)
+                            
+                            Spacer()
+                            
+                            Button(action: {
+                                showingTemplatesPicker = true
+                            }) {
+                                HStack {
+                                    Image(systemName: "doc.text")
+                                    Text("Templates")
+                                }
+                                .font(.subheadline)
+                            }
+                            .buttonStyle(.bordered)
+                        }
                         
                         TextEditor(text: $text)
                             .frame(minHeight: 100)
@@ -84,32 +135,53 @@ struct HomeView: View {
                                     .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
                             )
                         
-                        Button(action: sendText) {
-                            HStack {
-                                Image(systemName: "paperplane.fill")
-                                Text("Send")
+                        HStack(spacing: 12) {
+                            Button(action: sendText) {
+                                HStack {
+                                    Image(systemName: "paperplane.fill")
+                                    Text("Send")
+                                }
+                                .frame(maxWidth: .infinity)
                             }
-                            .frame(maxWidth: .infinity)
+                            .buttonStyle(.borderedProminent)
+                            .disabled(text.isEmpty || bleManager.connectedDevices.isEmpty || isSending)
+                            
+                            Button(action: startTeleprompter) {
+                                HStack {
+                                    Image(systemName: "text.viewfinder")
+                                    Text("Teleprompter")
+                                }
+                                .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(text.isEmpty)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(text.isEmpty || bleManager.connectedDevices.isEmpty || isSending)
                     }
+                    .padding()
+                    .background(Color.secondary.opacity(0.05))
+                    .cornerRadius(12)
                     
-                    // Connected devices
-                    VStack(alignment: .leading) {
-                        Text("Connected Devices")
-                            .font(.headline)
+                    // Connected devices with improved styling
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Text("Connected Devices")
+                                .font(.headline)
+                            
+                            Spacer()
+                            
+                            NavigationLink(destination: DevicesView()) {
+                                Text("Manage")
+                                    .font(.subheadline)
+                            }
+                        }
                         
                         if bleManager.connectedDevices.isEmpty {
                             HStack {
                                 Image(systemName: "antenna.radiowaves.left.and.right.slash")
+                                    .foregroundColor(.secondary)
                                 Text("No devices connected")
                                     .foregroundColor(.secondary)
                                 Spacer()
-                                NavigationLink(destination: DevicesView()) {
-                                    Text("Connect")
-                                        .font(.subheadline)
-                                }
                             }
                             .padding()
                             .background(Color.secondary.opacity(0.1))
@@ -120,9 +192,104 @@ struct HomeView: View {
                             }
                         }
                     }
+                    .padding()
+                    .background(Color.secondary.opacity(0.05))
+                    .cornerRadius(12)
+                    
+                    // Fitness data section
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Image(systemName: "heart.fill")
+                                .foregroundColor(.red)
+                            Text("Fitness Data")
+                                .font(.headline)
+                            
+                            Spacer()
+                            
+                            Button(action: {
+                                showingFitnessData = true
+                            }) {
+                                Text("Details")
+                                    .font(.subheadline)
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                        
+                        // Fitness metrics in a grid
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 15) {
+                            // Heart Rate
+                            VStack {
+                                Image(systemName: "heart.fill")
+                                    .foregroundColor(.red)
+                                Text("\(Int(fitnessManager.heartRate))")
+                                    .font(.system(size: 20, weight: .bold))
+                                Text("BPM")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding()
+                            .background(Color.red.opacity(0.1))
+                            .cornerRadius(8)
+                            
+                            // Steps
+                            VStack {
+                                Image(systemName: "figure.walk")
+                                    .foregroundColor(.blue)
+                                Text("\(fitnessManager.steps)")
+                                    .font(.system(size: 20, weight: .bold))
+                                Text("Steps")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding()
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(8)
+                            
+                            // Calories
+                            VStack {
+                                Image(systemName: "flame.fill")
+                                    .foregroundColor(.orange)
+                                Text("\(Int(fitnessManager.calories))")
+                                    .font(.system(size: 20, weight: .bold))
+                                Text("kcal")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding()
+                            .background(Color.orange.opacity(0.1))
+                            .cornerRadius(8)
+                        }
+                        
+                        // Workout status or start button
+                        if fitnessManager.workoutState == .active || fitnessManager.workoutState == .paused {
+                            HStack {
+                                Image(systemName: "figure.\(fitnessManager.workoutType.rawValue.lowercased())")
+                                
+                                VStack(alignment: .leading) {
+                                    Text("\(fitnessManager.workoutType.rawValue) Workout")
+                                        .font(.subheadline)
+                                    Text(fitnessManager.formatDuration(fitnessManager.workoutDuration))
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                
+                                Spacer()
+                                
+                                Circle()
+                                    .fill(fitnessManager.workoutState == .active ? Color.green : Color.orange)
+                                    .frame(width: 10, height: 10)
+                            }
+                            .padding()
+                            .background(Color.secondary.opacity(0.1))
+                            .cornerRadius(8)
+                        }
+                    }
+                    .padding()
+                    .background(Color.secondary.opacity(0.05))
+                    .cornerRadius(12)
                     
                     // Recent templates
-                    VStack(alignment: .leading) {
+                    VStack(alignment: .leading, spacing: 12) {
                         HStack {
                             Text("Recent Templates")
                                 .font(.headline)
@@ -161,139 +328,21 @@ struct HomeView: View {
                             }
                         }
                     }
-                    
-                    // Fitness data
-                    VStack(alignment: .leading) {
-                        HStack {
-                            Text("Fitness Data")
-                                .font(.headline)
-                            Spacer()
-                            Button(action: {
-                                showingFitnessView = true
-                            }) {
-                                Text("View All")
-                                    .font(.subheadline)
-                            }
-                        }
-                        
-                        if fitnessManager.isHealthKitAvailable && fitnessManager.isHealthKitAuthorized {
-                            HStack(spacing: 15) {
-                                // Heart Rate
-                                VStack {
-                                    Image(systemName: "heart.fill")
-                                        .foregroundColor(.red)
-                                    Text("\(Int(fitnessManager.heartRate))")
-                                        .font(.title2)
-                                        .fontWeight(.bold)
-                                    Text("BPM")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.secondary.opacity(0.1))
-                                .cornerRadius(8)
-                                
-                                // Steps
-                                VStack {
-                                    Image(systemName: "figure.walk")
-                                        .foregroundColor(.blue)
-                                    Text("\(fitnessManager.steps)")
-                                        .font(.title2)
-                                        .fontWeight(.bold)
-                                    Text("Steps")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.secondary.opacity(0.1))
-                                .cornerRadius(8)
-                                
-                                // Calories
-                                VStack {
-                                    Image(systemName: "flame.fill")
-                                        .foregroundColor(.orange)
-                                    Text("\(Int(fitnessManager.calories))")
-                                        .font(.title2)
-                                        .fontWeight(.bold)
-                                    Text("kcal")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.secondary.opacity(0.1))
-                                .cornerRadius(8)
-                            }
-                            
-                            // Send to glasses button
-                            if fitnessManager.heartRate > 0 && !bleManager.connectedDevices.isEmpty {
-                                Button(action: sendFitnessData) {
-                                    HStack {
-                                        Image(systemName: "heart.fill")
-                                        Text("Send Fitness Data to Glasses")
-                                    }
-                                    .frame(maxWidth: .infinity)
-                                }
-                                .buttonStyle(.bordered)
-                            }
-                        } else {
-                            Button(action: {
-                                if fitnessManager.isHealthKitAvailable {
-                                    fitnessManager.requestHealthKitAuthorization()
-                                } else {
-                                    showingFitnessView = true
-                                }
-                            }) {
-                                HStack {
-                                    Image(systemName: "heart.fill")
-                                    Text(fitnessManager.isHealthKitAvailable ? 
-                                         "Enable Health Access" : 
-                                         "View Fitness Features")
-                                }
-                                .frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                    }
-                    
-                    // Start teleprompter
-                    Button(action: startTeleprompter) {
-                        HStack {
-                            Image(systemName: "text.viewfinder")
-                            Text("Start Teleprompter")
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(text.isEmpty)
+                    .padding()
+                    .background(Color.secondary.opacity(0.05))
+                    .cornerRadius(12)
                 }
                 .padding()
             }
-            .navigationTitle("G1 OpenTeleprompter")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: {
-                        appState.selectedTab = .devices
-                    }) {
-                        Image(systemName: "antenna.radiowaves.left.and.right")
-                    }
-                }
+            .navigationTitle("Home")
+            .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showingFitnessData) {
+                FitnessDataView()
             }
-            .sheet(isPresented: $showingFitnessView) {
-                NavigationStack {
-                    FitnessDataView()
-                        .navigationTitle("Fitness")
-                        .navigationBarTitleDisplayMode(.inline)
-                        .toolbar {
-                            ToolbarItem(placement: .navigationBarLeading) {
-                                Button("Done") {
-                                    showingFitnessView = false
-                                }
-                            }
-                        }
-                }
+            .sheet(isPresented: $showingTemplatesPicker) {
+                TemplatesPickerView(onSelect: { template in
+                    text = template.body
+                })
             }
         }
     }
@@ -322,21 +371,56 @@ struct HomeView: View {
         // Switch to teleprompter view
         appState.selectedTab = .teleprompter
     }
+}
+
+// MARK: - Templates Picker View
+
+struct TemplatesPickerView: View {
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var appState: AppState
+    @State private var searchText = ""
     
-    private func sendFitnessData() {
-        guard !bleManager.connectedDevices.isEmpty else { return }
-        
-        // Prepare text with fitness data
-        let fitnessText = """
-        Fitness Data:
-        Heart Rate: \(Int(fitnessManager.heartRate)) BPM (Zone \(fitnessManager.heartRateZone(for: fitnessManager.heartRate)))
-        Steps: \(fitnessManager.steps)
-        Calories: \(Int(fitnessManager.calories)) kcal
-        """
-        
-        // Send to glasses
-        Task {
-            _ = await bleManager.broadcastText(fitnessText)
+    var onSelect: (Template) -> Void
+    
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(filteredTemplates) { template in
+                    Button(action: {
+                        onSelect(template)
+                        dismiss()
+                    }) {
+                        VStack(alignment: .leading) {
+                            Text(template.title)
+                                .font(.headline)
+                            Text(template.body.prefix(100))
+                                .font(.subheadline)
+                                .lineLimit(2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Select Template")
+            .searchable(text: $searchText, prompt: "Search templates")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+    
+    private var filteredTemplates: [Template] {
+        if searchText.isEmpty {
+            return appState.recentTemplates
+        } else {
+            return appState.recentTemplates.filter { 
+                $0.title.localizedCaseInsensitiveContains(searchText) || 
+                $0.body.localizedCaseInsensitiveContains(searchText)
+            }
         }
     }
 }

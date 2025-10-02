@@ -44,7 +44,8 @@ class BLEManager: NSObject, ObservableObject {
         
         // Init CoreBluetooth
         let options: [String: Any] = [
-            CBCentralManagerOptionShowPowerAlertKey: true
+            CBCentralManagerOptionShowPowerAlertKey: true,
+            CBCentralManagerOptionRestoreIdentifierKey: "com.g1teleprompter.blemanager"
         ]
         
         // Dedicated queue for BLE operations

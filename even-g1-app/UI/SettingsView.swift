@@ -15,6 +15,7 @@ struct SettingsView: View {
     @State private var settings: AppSettings
     @State private var showingProfileEditor = false
     @State private var editingProfile: ProtocolProfile? = nil
+    @State private var needsRefresh = false
     
     init() {
         _settings = State(initialValue: AppSettings.load())
@@ -55,7 +56,13 @@ struct SettingsView: View {
                     }
                     .disabled(bleManager.activeProfile == nil)
                     
-                    Toggle("Auto-connect", isOn: $settings.autoReconnect)
+                    Toggle("Auto-connect", isOn: Binding(
+                        get: { settings.autoReconnect },
+                        set: { 
+                            settings.autoReconnect = $0
+                            needsRefresh.toggle() // Force UI update
+                        }
+                    ))
                     
                     HStack {
                         Text("Scan Timeout")
@@ -63,7 +70,17 @@ struct SettingsView: View {
                         Text("\(Int(settings.scanTimeout)) seconds")
                     }
                     
-                    Slider(value: $settings.scanTimeout, in: 5...30, step: 1)
+                    Slider(
+                        value: Binding(
+                            get: { settings.scanTimeout },
+                            set: { 
+                                settings.scanTimeout = $0
+                                needsRefresh.toggle() // Force UI update
+                            }
+                        ),
+                        in: 5...30,
+                        step: 1
+                    )
                 }
                 
                 // Teleprompter settings
@@ -74,7 +91,17 @@ struct SettingsView: View {
                         Text(String(format: "%.1fx", settings.defaultScrollSpeed))
                     }
                     
-                    Slider(value: $settings.defaultScrollSpeed, in: 0.5...3.0, step: 0.1)
+                    Slider(
+                        value: Binding(
+                            get: { settings.defaultScrollSpeed },
+                            set: { 
+                                settings.defaultScrollSpeed = $0
+                                needsRefresh.toggle() // Force UI update
+                            }
+                        ),
+                        in: 0.5...3.0,
+                        step: 0.1
+                    )
                     
                     HStack {
                         Text("Font Size")
@@ -82,7 +109,17 @@ struct SettingsView: View {
                         Text("\(Int(settings.fontSizeMultiplier * 100))%")
                     }
                     
-                    Slider(value: $settings.fontSizeMultiplier, in: 0.5...2.0, step: 0.1)
+                    Slider(
+                        value: Binding(
+                            get: { settings.fontSizeMultiplier },
+                            set: { 
+                                settings.fontSizeMultiplier = $0
+                                needsRefresh.toggle() // Force UI update
+                            }
+                        ),
+                        in: 0.5...2.0,
+                        step: 0.1
+                    )
                     
                     HStack {
                         Text("Line Spacing")
@@ -90,38 +127,109 @@ struct SettingsView: View {
                         Text("\(Int(settings.lineSpacing * 100))%")
                     }
                     
-                    Slider(value: $settings.lineSpacing, in: 0.8...2.0, step: 0.1)
+                    Slider(
+                        value: Binding(
+                            get: { settings.lineSpacing },
+                            set: { 
+                                settings.lineSpacing = $0
+                                needsRefresh.toggle() // Force UI update
+                            }
+                        ),
+                        in: 0.8...2.0,
+                        step: 0.1
+                    )
                     
-                    Toggle("Monospace Font", isOn: $settings.usesMonospaceFont)
+                    Toggle("Monospace Font", isOn: Binding(
+                        get: { settings.usesMonospaceFont },
+                        set: { 
+                            settings.usesMonospaceFont = $0
+                            needsRefresh.toggle() // Force UI update
+                        }
+                    ))
                     
-                    Toggle("Show Countdown", isOn: $settings.showCountdown)
+                    Toggle("Show Countdown", isOn: Binding(
+                        get: { settings.showCountdown },
+                        set: { 
+                            settings.showCountdown = $0
+                            needsRefresh.toggle() // Force UI update
+                        }
+                    ))
                     
                     if settings.showCountdown {
                         Stepper("Countdown: \(Int(settings.countdownDuration)) seconds", value: Binding(
                             get: { Int(settings.countdownDuration) },
-                            set: { settings.countdownDuration = TimeInterval($0) }
+                            set: { 
+                                settings.countdownDuration = TimeInterval($0)
+                                needsRefresh.toggle() // Force UI update
+                            }
                         ), in: 1...10)
                     }
                 }
                 
                 // General settings
                 Section(header: Text("General")) {
-                    Toggle("Cloud Synchronization", isOn: $settings.useCloudSync)
+                    Toggle("Cloud Synchronization", isOn: Binding(
+                        get: { settings.useCloudSync },
+                        set: { 
+                            settings.useCloudSync = $0
+                            needsRefresh.toggle() // Force UI update
+                        }
+                    ))
                     
-                    Picker("Appearance", selection: $settings.useDarkMode) {
-                        Text("System").tag(nil as Bool?)
-                        Text("Light").tag(false as Bool?)
-                        Text("Dark").tag(true as Bool?)
+                    Picker("Appearance", selection: Binding(
+                        get: { 
+                            // Ensure we never return nil to the picker
+                            settings.useDarkMode ?? false 
+                        },
+                        set: { 
+                            // If user selects "System", we'll handle it separately
+                            settings.useDarkMode = $0
+                            needsRefresh.toggle() // Force UI update
+                        }
+                    )) {
+                        Text("Light").tag(false)
+                        Text("Dark").tag(true)
                     }
-                    .pickerStyle(.segmented)
                     
-                    Toggle("Enable Voice Input", isOn: $settings.enableVoiceInput)
+                    Toggle("Use System Appearance", isOn: Binding(
+                        get: { settings.useDarkMode == nil },
+                        set: {
+                            settings.useDarkMode = $0 ? nil : false
+                            needsRefresh.toggle() // Force UI update
+                        }
+                    ))
                     
-                    Toggle("Enable Background Mode", isOn: $settings.enableBackgroundMode)
+                    Toggle("Enable Voice Input", isOn: Binding(
+                        get: { settings.enableVoiceInput },
+                        set: { 
+                            settings.enableVoiceInput = $0
+                            needsRefresh.toggle() // Force UI update
+                        }
+                    ))
                     
-                    Toggle("Enable Widgets", isOn: $settings.enableWidgets)
+                    Toggle("Enable Background Mode", isOn: Binding(
+                        get: { settings.enableBackgroundMode },
+                        set: { 
+                            settings.enableBackgroundMode = $0
+                            needsRefresh.toggle() // Force UI update
+                        }
+                    ))
                     
-                    Toggle("Enable Live Activities", isOn: $settings.enableLiveActivity)
+                    Toggle("Enable Widgets", isOn: Binding(
+                        get: { settings.enableWidgets },
+                        set: { 
+                            settings.enableWidgets = $0
+                            needsRefresh.toggle() // Force UI update
+                        }
+                    ))
+                    
+                    Toggle("Enable Live Activities", isOn: Binding(
+                        get: { settings.enableLiveActivity },
+                        set: { 
+                            settings.enableLiveActivity = $0
+                            needsRefresh.toggle() // Force UI update
+                        }
+                    ))
                     
                     NavigationLink(destination: FitnessSettingsView()) {
                         Text("Fitness Settings")
@@ -130,9 +238,21 @@ struct SettingsView: View {
                 
                 // Diagnostics settings
                 Section(header: Text("Diagnostics")) {
-                    Toggle("Verbose Logging", isOn: $settings.verboseLogging)
+                    Toggle("Verbose Logging", isOn: Binding(
+                        get: { settings.verboseLogging },
+                        set: { 
+                            settings.verboseLogging = $0
+                            needsRefresh.toggle() // Force UI update
+                        }
+                    ))
                     
-                    Picker("Log Retention", selection: $settings.logRetentionDays) {
+                    Picker("Log Retention", selection: Binding(
+                        get: { settings.logRetentionDays },
+                        set: { 
+                            settings.logRetentionDays = $0
+                            needsRefresh.toggle() // Force UI update
+                        }
+                    )) {
                         Text("1 Day").tag(1)
                         Text("7 Days").tag(7)
                         Text("30 Days").tag(30)
@@ -181,6 +301,15 @@ struct SettingsView: View {
                 // Save the settings
                 newSettings.save()
                 appState.settings = newSettings
+                
+                // Force refresh UI if needed
+                if needsRefresh {
+                    needsRefresh = false
+                }
+            }
+            .onAppear {
+                // Refresh settings from AppState
+                settings = appState.settings
             }
             .sheet(isPresented: $showingProfileEditor) {
                 ProtocolProfileEditorView(
