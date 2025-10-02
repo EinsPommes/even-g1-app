@@ -66,6 +66,11 @@ class BLEDeviceStatus: ObservableObject, Identifiable {
     // Reference to CoreBluetooth peripheral
     var peripheral: CBPeripheral?
     
+    // Name of the device (convenience property)
+    var name: String {
+        return knownDevice.displayName
+    }
+    
     init(knownDevice: KnownDevice, peripheral: CBPeripheral? = nil) {
         self.id = knownDevice.id
         self.knownDevice = knownDevice

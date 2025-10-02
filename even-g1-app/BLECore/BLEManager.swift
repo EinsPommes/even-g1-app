@@ -47,7 +47,7 @@ class BLEManager: NSObject, ObservableObject {
     @Published var availableProfiles: [ProtocolProfile] = []
     
     // Device sessions
-    private var deviceSessions: [UUID: BLEDeviceSession] = [:]
+    internal var deviceSessions: [UUID: BLEDeviceSession] = [:]
     
     // Combine subscriptions
     private var cancellables = Set<AnyCancellable>()
