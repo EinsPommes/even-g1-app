@@ -197,7 +197,9 @@ class BLEManager: NSObject, ObservableObject {
         }
         
         // Start scanning for known devices
-        isScanning = true
+        await MainActor.run {
+            isScanning = true
+        }
         
         // Use retrievePeripherals to find known devices
         let identifiers = devicesToReconnect.compactMap { UUID(uuidString: $0.identifier) }
@@ -205,12 +207,16 @@ class BLEManager: NSObject, ObservableObject {
         
         for peripheral in peripherals {
             if let knownDevice = knownDevices.first(where: { $0.identifier == peripheral.identifier.uuidString }) {
-                connect(to: peripheral, as: knownDevice.role)
+                await MainActor.run {
+                    connect(to: peripheral, as: knownDevice.role)
+                }
             }
         }
         
         // Stop scan after a reasonable time
-        isScanning = false
+        await MainActor.run {
+            isScanning = false
+        }
     }
     
     /// Saves a new protocol profile
@@ -236,6 +242,19 @@ class BLEManager: NSObject, ObservableObject {
         for (deviceId, session) in deviceSessions {
             session.updateProfile(profile)
         }
+    }
+
+    /// Deletes a known device by its identifier, disconnects it if connected, and removes it from auto-reconnect
+    func deleteKnownDevice(withId id: String) {
+        // Disconnect if connected
+        if let uuid = UUID(uuidString: id), let connected = connectedDevices.first(where: { $0.id == uuid }), let peripheral = connected.peripheral {
+            centralManager.cancelPeripheralConnection(peripheral)
+            deviceSessions[uuid] = nil
+            connectedDevices.removeAll { $0.id == uuid }
+        }
+        // Remove from knownDevices
+        knownDevices.removeAll { $0.identifier == id }
+        saveKnownDevices()
     }
     
     // MARK: - Private Methods
@@ -414,6 +433,9 @@ extension BLEManager: CBCentralManagerDelegate {
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         logger.info("Disconnected from device: \(peripheral.name ?? "Unknown")")
         
+        // Capture peripheral in a strong reference to prevent deallocation
+        var peripheralRef = peripheral
+        
         // Ensure UI updates are made on the main thread
         DispatchQueue.main.async {
             // Update the device status
@@ -423,19 +445,26 @@ extension BLEManager: CBCentralManagerDelegate {
                 
                 // Save device ID before removing
                 let deviceId = self.connectedDevices[index].id
-                self.connectedDevices.remove(at: index)
                 
-                // Remove the session safely
-                self.deviceSessions[deviceId] = nil
+                // Keep peripheral reference in connectedDevices if we plan to reconnect
+                if let error = error,
+                   let knownDevice = self.knownDevices.first(where: { $0.identifier == peripheral.identifier.uuidString }),
+                   knownDevice.autoReconnect {
+                    // Just update status but don't remove
+                } else {
+                    self.connectedDevices.remove(at: index)
+                    // Remove the session safely
+                    self.deviceSessions[deviceId] = nil
+                }
             }
-        }
-        
-        // Try to automatically reconnect if an error occurred
-        if let error = error,
-           let knownDevice = knownDevices.first(where: { $0.identifier == peripheral.identifier.uuidString }),
-           knownDevice.autoReconnect {
-            logger.info("Attempting to automatically reconnect: \(peripheral.name ?? "Unknown")")
-            centralManager.connect(peripheral, options: nil)
+            
+            // Try to automatically reconnect if an error occurred
+            if let error = error,
+               let knownDevice = self.knownDevices.first(where: { $0.identifier == peripheral.identifier.uuidString }),
+               knownDevice.autoReconnect {
+                self.logger.info("Attempting to automatically reconnect: \(peripheralRef.name ?? "Unknown")")
+                self.centralManager.connect(peripheralRef, options: nil)
+            }
         }
     }
     
@@ -475,6 +504,7 @@ enum BLEError: Error, LocalizedError {
     case connectionFailed
     case serviceNotFound
     case characteristicNotFound
+    case characteristicNotWritable
     case writeError
     case readError
     case notifyError
@@ -498,6 +528,8 @@ enum BLEError: Error, LocalizedError {
             return "BLE service not found"
         case .characteristicNotFound:
             return "BLE characteristic not found"
+        case .characteristicNotWritable:
+            return "BLE characteristic is not writable"
         case .writeError:
             return "Error writing data"
         case .readError:
@@ -513,4 +545,11 @@ enum BLEError: Error, LocalizedError {
         }
     }
 }
+
+// Note: BLEDeviceStatus is not declared in this file.
+// The requested computed property should be added in the BLEDeviceStatus definition file:
+//
+// var name: String {
+//     return peripheral?.name ?? knownDevice?.name ?? "Unknown"
+// }
 

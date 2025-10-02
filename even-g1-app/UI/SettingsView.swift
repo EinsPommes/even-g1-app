@@ -6,64 +6,147 @@
 //
 
 import SwiftUI
-import CoreBluetooth
 
 struct SettingsView: View {
-    @EnvironmentObject private var appState: AppState
-    @EnvironmentObject private var bleManager: BLEManager
+    @EnvironmentObject var appState: AppState
+    @EnvironmentObject var bleManager: BLEManager
+    @EnvironmentObject var settings: AppSettings
     
-    @State private var settings: AppSettings
-    @State private var showingProfileEditor = false
-    @State private var editingProfile: ProtocolProfile? = nil
     @State private var needsRefresh = false
-    
-    init() {
-        _settings = State(initialValue: AppSettings.load())
-    }
+    @State private var showingAddProfileSheet = false
+    @State private var showingEditProfileSheet = false
+    @State private var selectedProfile: ProtocolProfile?
     
     var body: some View {
         NavigationStack {
             Form {
-                // BLE settings
-                Section(header: Text("Bluetooth")) {
-                    // Profile selection
-                    Picker("Active Profile", selection: Binding<UUID?>(
-                        get: { settings.activeProfileId },
-                        set: { newValue in
-                            settings.activeProfileId = newValue
-                            if let id = newValue, let profile = bleManager.availableProfiles.first(where: { $0.id == id }) {
-                                bleManager.activateProfile(id)
+                // MARK: - Bluetooth Status
+                Section(header: Text("Bluetooth Status")) {
+                    HStack {
+                        Text("Status")
+                        Spacer()
+                        Text(bleStatusText)
+                            .foregroundColor(bleStatusColor)
+                    }
+                    
+                    if let error = bleManager.lastError {
+                        HStack {
+                            Text("Last error:")
+                            Spacer()
+                            Text(error.localizedDescription)
+                                .foregroundColor(.red)
+                                .font(.caption)
+                                .multilineTextAlignment(.trailing)
+                        }
+                    }
+                    
+                    HStack {
+                        Text("Scanning")
+                        Spacer()
+                        Text(bleManager.isScanning ? "Active" : "Inactive")
+                            .foregroundColor(bleManager.isScanning ? .green : .secondary)
+                    }
+                    
+                    Button(action: {
+                        if bleManager.isScanning {
+                            bleManager.stopScan()
+                        } else {
+                            bleManager.startScan()
+                        }
+                    }) {
+                        Text(bleManager.isScanning ? "Stop Scan" : "Start Scan")
+                    }
+                }
+                
+                // MARK: - Connected Devices
+                if !bleManager.connectedDevices.isEmpty {
+                    Section(header: Text("Connected Devices")) {
+                        ForEach(bleManager.connectedDevices) { device in
+                            HStack {
+                                VStack(alignment: .leading) {
+                                    Text(device.name)
+                                        .font(.headline)
+                                    
+                                    if device.isConnecting {
+                                        Text("Connecting...")
+                                            .font(.caption)
+                                            .foregroundColor(.orange)
+                                    } else if device.isConnected {
+                                        Text("Connected")
+                                            .font(.caption)
+                                            .foregroundColor(.green)
+                                    } else {
+                                        Text("Disconnected")
+                                            .font(.caption)
+                                            .foregroundColor(.red)
+                                    }
+                                }
+                                
+                                Spacer()
+                                
+                                if let batteryLevel = device.batteryLevel {
+                                    HStack {
+                                        Image(systemName: batteryIconName(for: batteryLevel))
+                                            .foregroundColor(batteryColor(for: batteryLevel))
+                                        Text("\(batteryLevel)%")
+                                    }
+                                }
+                                
+                                Button(action: {
+                                    bleManager.disconnect(deviceId: device.id)
+                                }) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundColor(.red)
+                                }
                             }
                         }
-                    )) {
-                        ForEach(bleManager.availableProfiles) { profile in
-                            Text(profile.name).tag(profile.id as UUID?)
+                    }
+                }
+                
+                // MARK: - Known Devices
+                Section(header: Text("Known Devices")) {
+                    ForEach(bleManager.knownDevices) { device in
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text(device.displayName)
+                                    .font(.headline)
+                                Text(device.role.rawValue)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Spacer()
+                            
+                            Toggle("Auto", isOn: Binding(
+                                get: { bleManager.knownDevices.first(where: { $0.id == device.id })?.autoReconnect ?? false },
+                                set: { newValue in
+                                    if let index = bleManager.knownDevices.firstIndex(where: { $0.id == device.id }) {
+                                        bleManager.knownDevices[index].autoReconnect = newValue
+                                        // Save the updated settings
+                                        if let data = try? JSONEncoder().encode(bleManager.knownDevices) {
+                                            UserDefaults.standard.set(data, forKey: "KnownDevices")
+                                        }
+                                    }
+                                }
+                            ))
+                        }
+                        .swipeActions(edge: .trailing) {
+                            Button(role: .destructive) {
+                                bleManager.deleteKnownDevice(withId: device.identifier)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
                         }
                     }
                     
-                    Button(action: {
-                        showingProfileEditor = true
-                    }) {
-                        Label("Create New Profile", systemImage: "plus")
+                    if bleManager.knownDevices.isEmpty {
+                        Text("No known devices")
+                            .foregroundColor(.secondary)
                     }
-                    
-                    Button(action: {
-                        if let activeProfile = bleManager.activeProfile {
-                            editingProfile = activeProfile
-                        }
-                    }) {
-                        Label("Edit Active Profile", systemImage: "pencil")
-                    }
-                    .disabled(bleManager.activeProfile == nil)
-                    
-                    Toggle("Auto-connect", isOn: Binding(
-                        get: { settings.autoReconnect },
-                        set: { 
-                            settings.autoReconnect = $0
-                            needsRefresh.toggle() // Force UI update
-                        }
-                    ))
-                    
+                }
+                
+                // MARK: - Scan Settings
+                Section(header: Text("Scan Settings")) {
                     HStack {
                         Text("Scan Timeout")
                         Spacer()
@@ -73,7 +156,7 @@ struct SettingsView: View {
                     Slider(
                         value: Binding(
                             get: { settings.scanTimeout },
-                            set: { 
+                            set: {
                                 settings.scanTimeout = $0
                                 needsRefresh.toggle() // Force UI update
                             }
@@ -83,19 +166,73 @@ struct SettingsView: View {
                     )
                 }
                 
-                // Teleprompter settings
-                Section(header: Text("Teleprompter")) {
+                // MARK: - Protocol Settings
+                Section(header: Text("Protocol Settings")) {
+                    if let activeProfile = bleManager.activeProfile {
+                        HStack {
+                            Text("Active Profile")
+                            Spacer()
+                            Text(activeProfile.name)
+                                .foregroundColor(.blue)
+                        }
+                    } else {
+                        Text("No active profile")
+                            .foregroundColor(.red)
+                    }
+                    
+                    ForEach(bleManager.availableProfiles) { profile in
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text(profile.name)
+                                    .font(.headline)
+                                Text("Service: \(profile.serviceUUID)")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Spacer()
+                            
+                            if bleManager.activeProfile?.id == profile.id {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            bleManager.activateProfile(profile.id)
+                            needsRefresh.toggle()
+                        }
+                        .swipeActions {
+                            Button {
+                                selectedProfile = profile
+                                showingEditProfileSheet = true
+                            } label: {
+                                Label("Edit", systemImage: "pencil")
+                            }
+                            .tint(.blue)
+                        }
+                    }
+                    
+                    Button(action: {
+                        showingAddProfileSheet = true
+                    }) {
+                        Label("Add Profile", systemImage: "plus")
+                    }
+                }
+                
+                // MARK: - Teleprompter Settings
+                Section(header: Text("Teleprompter Settings")) {
                     HStack {
-                        Text("Default Speed")
+                        Text("Speed")
                         Spacer()
-                        Text(String(format: "%.1fx", settings.defaultScrollSpeed))
+                        Text(String(format: "%.1f", settings.teleprompterSpeed))
                     }
                     
                     Slider(
                         value: Binding(
-                            get: { settings.defaultScrollSpeed },
-                            set: { 
-                                settings.defaultScrollSpeed = $0
+                            get: { settings.teleprompterSpeed },
+                            set: {
+                                settings.teleprompterSpeed = $0
                                 needsRefresh.toggle() // Force UI update
                             }
                         ),
@@ -104,461 +241,376 @@ struct SettingsView: View {
                     )
                     
                     HStack {
-                        Text("Font Size")
-                        Spacer()
-                        Text("\(Int(settings.fontSizeMultiplier * 100))%")
-                    }
-                    
-                    Slider(
-                        value: Binding(
-                            get: { settings.fontSizeMultiplier },
-                            set: { 
-                                settings.fontSizeMultiplier = $0
-                                needsRefresh.toggle() // Force UI update
-                            }
-                        ),
-                        in: 0.5...2.0,
-                        step: 0.1
-                    )
-                    
-                    HStack {
                         Text("Line Spacing")
                         Spacer()
-                        Text("\(Int(settings.lineSpacing * 100))%")
+                        Text(String(format: "%.1f", settings.lineSpacing))
                     }
                     
                     Slider(
                         value: Binding(
                             get: { settings.lineSpacing },
-                            set: { 
+                            set: {
                                 settings.lineSpacing = $0
                                 needsRefresh.toggle() // Force UI update
                             }
                         ),
-                        in: 0.8...2.0,
+                        in: 1.0...2.0,
                         step: 0.1
                     )
                     
                     Toggle("Monospace Font", isOn: Binding(
-                        get: { settings.usesMonospaceFont },
-                        set: { 
-                            settings.usesMonospaceFont = $0
+                        get: { settings.useMonospaceFont },
+                        set: {
+                            settings.useMonospaceFont = $0
                             needsRefresh.toggle() // Force UI update
                         }
                     ))
                     
                     Toggle("Show Countdown", isOn: Binding(
                         get: { settings.showCountdown },
-                        set: { 
+                        set: {
                             settings.showCountdown = $0
                             needsRefresh.toggle() // Force UI update
                         }
                     ))
                     
                     if settings.showCountdown {
-                        Stepper("Countdown: \(Int(settings.countdownDuration)) seconds", value: Binding(
-                            get: { Int(settings.countdownDuration) },
-                            set: { 
-                                settings.countdownDuration = TimeInterval($0)
+                        HStack {
+                            Text("Countdown Duration")
+                            Spacer()
+                            Text("\(Int(settings.countdownDuration)) seconds")
+                        }
+                        
+                        Slider(
+                            value: Binding(
+                                get: { settings.countdownDuration },
+                                set: {
+                                    settings.countdownDuration = $0
+                                    needsRefresh.toggle() // Force UI update
+                                }
+                            ),
+                            in: 1...10,
+                            step: 1
+                        )
+                    }
+                }
+                
+                // MARK: - Framing Settings
+                Section(header: Text("Framing")) {
+                    Toggle("Use Framing", isOn: Binding(
+                        get: { settings.useFraming },
+                        set: {
+                            settings.useFraming = $0
+                            needsRefresh.toggle() // Force UI update
+                        }
+                    ))
+                    
+                    if settings.useFraming {
+                        HStack {
+                            Text("Max Packet Size")
+                            Spacer()
+                            Text("\(settings.maxPacketSize) bytes")
+                        }
+                        
+                        Slider(
+                            value: Binding(
+                                get: { Double(settings.maxPacketSize) },
+                                set: {
+                                    settings.maxPacketSize = Int($0)
+                                    needsRefresh.toggle() // Force UI update
+                                }
+                            ),
+                            in: 10...100,
+                            step: 1
+                        )
+                    }
+                }
+                
+                // MARK: - Write Mode
+                Section(header: Text("Write Mode")) {
+                    Picker("Write Mode", selection: Binding(
+                        get: { settings.writeWithResponse },
+                        set: {
+                            settings.writeWithResponse = $0
+                            needsRefresh.toggle() // Force UI update
+                        }
+                    )) {
+                        Text("With Response").tag(true)
+                        Text("Without Response").tag(false)
+                    }
+                    .pickerStyle(.segmented)
+                }
+                
+                // MARK: - Encoding
+                Section(header: Text("Encoding")) {
+                    Picker("Encoding", selection: Binding(
+                        get: { settings.encoding },
+                        set: {
+                            settings.encoding = $0
+                            needsRefresh.toggle() // Force UI update
+                        }
+                    )) {
+                        Text("UTF-8").tag("utf8")
+                        Text("Hex").tag("hex")
+                    }
+                    .pickerStyle(.segmented)
+                }
+                
+                // MARK: - Appearance
+                Section(header: Text("Appearance")) {
+                    // Use System Setting toggle
+                    Toggle("Use System Appearance", isOn: Binding(
+                        get: { settings.useSystemAppearance },
+                        set: {
+                            settings.useSystemAppearance = $0
+                            needsRefresh.toggle() // Force UI update
+                        }
+                    ))
+                    
+                    // Only show the picker if not using system appearance
+                    if !settings.useSystemAppearance {
+                        Picker("Theme", selection: Binding(
+                            get: { settings.isDarkMode },
+                            set: {
+                                settings.isDarkMode = $0
                                 needsRefresh.toggle() // Force UI update
                             }
-                        ), in: 1...10)
+                        )) {
+                            Text("Light").tag(false)
+                            Text("Dark").tag(true)
+                        }
+                        .pickerStyle(.segmented)
                     }
                 }
                 
-                // General settings
-                Section(header: Text("General")) {
-                    Toggle("Cloud Synchronization", isOn: Binding(
-                        get: { settings.useCloudSync },
-                        set: { 
-                            settings.useCloudSync = $0
-                            needsRefresh.toggle() // Force UI update
-                        }
-                    ))
-                    
-                    Picker("Appearance", selection: Binding(
-                        get: { 
-                            // Ensure we never return nil to the picker
-                            settings.useDarkMode ?? false 
-                        },
-                        set: { 
-                            // If user selects "System", we'll handle it separately
-                            settings.useDarkMode = $0
-                            needsRefresh.toggle() // Force UI update
-                        }
-                    )) {
-                        Text("Light").tag(false)
-                        Text("Dark").tag(true)
-                    }
-                    
-                    Toggle("Use System Appearance", isOn: Binding(
-                        get: { settings.useDarkMode == nil },
-                        set: {
-                            settings.useDarkMode = $0 ? nil : false
-                            needsRefresh.toggle() // Force UI update
-                        }
-                    ))
-                    
-                    Toggle("Enable Voice Input", isOn: Binding(
-                        get: { settings.enableVoiceInput },
-                        set: { 
-                            settings.enableVoiceInput = $0
-                            needsRefresh.toggle() // Force UI update
-                        }
-                    ))
-                    
-                    Toggle("Enable Background Mode", isOn: Binding(
-                        get: { settings.enableBackgroundMode },
-                        set: { 
-                            settings.enableBackgroundMode = $0
-                            needsRefresh.toggle() // Force UI update
-                        }
-                    ))
-                    
-                    Toggle("Enable Widgets", isOn: Binding(
-                        get: { settings.enableWidgets },
-                        set: { 
-                            settings.enableWidgets = $0
-                            needsRefresh.toggle() // Force UI update
-                        }
-                    ))
-                    
-                    Toggle("Enable Live Activities", isOn: Binding(
-                        get: { settings.enableLiveActivity },
-                        set: { 
-                            settings.enableLiveActivity = $0
-                            needsRefresh.toggle() // Force UI update
-                        }
-                    ))
-                    
+                // MARK: - Fitness Settings
+                Section(header: Text("Fitness")) {
                     NavigationLink(destination: FitnessSettingsView()) {
-                        Text("Fitness Settings")
+                        HStack {
+                            Image(systemName: "heart.fill")
+                                .foregroundColor(.red)
+                            Text("Fitness Settings")
+                        }
                     }
                 }
                 
-                // Diagnostics settings
-                Section(header: Text("Diagnostics")) {
-                    Toggle("Verbose Logging", isOn: Binding(
-                        get: { settings.verboseLogging },
-                        set: { 
-                            settings.verboseLogging = $0
-                            needsRefresh.toggle() // Force UI update
-                        }
-                    ))
-                    
-                    Picker("Log Retention", selection: Binding(
-                        get: { settings.logRetentionDays },
-                        set: { 
-                            settings.logRetentionDays = $0
-                            needsRefresh.toggle() // Force UI update
-                        }
-                    )) {
-                        Text("1 Day").tag(1)
-                        Text("7 Days").tag(7)
-                        Text("30 Days").tag(30)
-                        Text("Unlimited").tag(365)
-                    }
-                    
-                    NavigationLink(destination: BLEInspectorView()) {
-                        Label("BLE Inspector", systemImage: "antenna.radiowaves.left.and.right")
-                    }
-                    
-                    Button(action: exportLogs) {
-                        Label("Export Logs", systemImage: "square.and.arrow.up")
-                    }
-                    
-                    Button(action: clearLogs) {
-                        Label("Clear Logs", systemImage: "trash")
-                    }
-                    .foregroundColor(.red)
-                }
-                
-                // App information
+                // MARK: - About
                 Section(header: Text("About")) {
+                    Link(destination: URL(string: "https://github.com/EinsPommes/even-g1-app")!) {
+                        HStack {
+                            Image(systemName: "swift")
+                            Text("Source Code on GitHub")
+                            Spacer()
+                            Image(systemName: "arrow.up.right.square")
+                                .foregroundColor(.blue)
+                        }
+                    }
+                    
+                    Link(destination: URL(string: "mailto:feedback@even-reality.com")!) {
+                        HStack {
+                            Image(systemName: "envelope")
+                            Text("Send Feedback")
+                            Spacer()
+                            Image(systemName: "arrow.up.right.square")
+                                .foregroundColor(.blue)
+                        }
+                    }
+                    
                     HStack {
                         Text("Version")
                         Spacer()
-                        Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0")
-                    }
-                    
-                    HStack {
-                        Text("Build")
-                        Spacer()
-                        Text(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1")
-                    }
-                    
-                    Button(action: openSourceCode) {
-                        Label("Source Code on GitHub", systemImage: "curlybraces")
-                    }
-                    
-                    Button(action: sendFeedback) {
-                        Label("Send Feedback", systemImage: "envelope")
+                        Text("1.0.0")
+                            .foregroundColor(.secondary)
                     }
                 }
             }
             .navigationTitle("Settings")
-            .onChange(of: settings) { newSettings in
-                // Save the settings
-                newSettings.save()
-                appState.settings = newSettings
-                
-                // Force refresh UI if needed
-                if needsRefresh {
-                    needsRefresh = false
+            .sheet(isPresented: $showingAddProfileSheet) {
+                ProfileEditorView(isPresented: $showingAddProfileSheet, profile: nil)
+                    .environmentObject(bleManager)
+            }
+            .sheet(isPresented: $showingEditProfileSheet) {
+                if let profile = selectedProfile {
+                    ProfileEditorView(isPresented: $showingEditProfileSheet, profile: profile)
+                        .environmentObject(bleManager)
                 }
             }
-            .onAppear {
-                // Refresh settings from AppState
-                settings = appState.settings
-            }
-            .sheet(isPresented: $showingProfileEditor) {
-                ProtocolProfileEditorView(
-                    mode: .create,
-                    onSave: { newProfile in
-                        bleManager.saveProfile(newProfile)
-                        settings.activeProfileId = newProfile.id
-                        bleManager.activateProfile(newProfile.id)
-                        showingProfileEditor = false
-                    },
-                    onCancel: {
-                        showingProfileEditor = false
-                    }
-                )
-            }
-            .sheet(item: $editingProfile) { profile in
-                ProtocolProfileEditorView(
-                    mode: .edit(profile),
-                    onSave: { updatedProfile in
-                        bleManager.saveProfile(updatedProfile)
-                        if settings.activeProfileId == updatedProfile.id {
-                            bleManager.activateProfile(updatedProfile.id)
-                        }
-                        editingProfile = nil
-                    },
-                    onCancel: {
-                        editingProfile = nil
-                    }
-                )
+            .onChange(of: needsRefresh) { _ in
+                // This is just a dummy to force view updates
             }
         }
     }
     
-    private func exportLogs() {
-        // This function will be implemented later
-    }
+    // MARK: - Helper Properties
     
-    private func clearLogs() {
-        // This function will be implemented later
-    }
-    
-    private func openSourceCode() {
-        if let url = URL(string: "https://github.com/even-reality/g1-teleprompter-ios") {
-            UIApplication.shared.open(url)
+    private var bleStatusText: String {
+        switch bleManager.centralState {
+        case .poweredOn:
+            return "On"
+        case .poweredOff:
+            return "Off"
+        case .resetting:
+            return "Resetting"
+        case .unauthorized:
+            return "Unauthorized"
+        case .unsupported:
+            return "Unsupported"
+        case .unknown:
+            return "Unknown"
+        @unknown default:
+            return "Unknown"
         }
     }
     
-    private func sendFeedback() {
-        if let url = URL(string: "mailto:feedback@even-reality.com?subject=G1%20OpenTeleprompter%20Feedback") {
-            UIApplication.shared.open(url)
+    private var bleStatusColor: Color {
+        switch bleManager.centralState {
+        case .poweredOn:
+            return .green
+        case .poweredOff, .unauthorized, .unsupported:
+            return .red
+        case .resetting, .unknown:
+            return .orange
+        @unknown default:
+            return .orange
+        }
+    }
+    
+    private func batteryIconName(for level: Int) -> String {
+        if level <= 10 {
+            return "battery.0"
+        } else if level <= 25 {
+            return "battery.25"
+        } else if level <= 50 {
+            return "battery.50"
+        } else if level <= 75 {
+            return "battery.75"
+        } else {
+            return "battery.100"
+        }
+    }
+    
+    private func batteryColor(for level: Int) -> Color {
+        if level <= 20 {
+            return .red
+        } else if level <= 40 {
+            return .orange
+        } else {
+            return .green
         }
     }
 }
 
 // MARK: - Protocol Profile Editor
 
-struct ProtocolProfileEditorView: View {
-    enum Mode {
-        case create
-        case edit(ProtocolProfile)
+struct ProfileEditorView: View {
+    @EnvironmentObject var bleManager: BLEManager
+    @Binding var isPresented: Bool
+    
+    @State private var name: String
+    @State private var serviceUUID: String
+    @State private var txCharacteristic: String
+    @State private var rxCharacteristic: String
+    @State private var writeType: WriteType
+    @State private var encoding: DataEncoding
+    
+    private let isEditing: Bool
+    private let profileId: UUID
+    
+    init(isPresented: Binding<Bool>, profile: ProtocolProfile?) {
+        self._isPresented = isPresented
+        
+        if let profile = profile {
+            self._name = State(initialValue: profile.name)
+            self._serviceUUID = State(initialValue: profile.serviceUUID)
+            self._txCharacteristic = State(initialValue: profile.txCharacteristic)
+            self._rxCharacteristic = State(initialValue: profile.rxCharacteristic ?? "")
+            self._writeType = State(initialValue: profile.writeType)
+            self._encoding = State(initialValue: profile.encoding)
+            self.isEditing = true
+            self.profileId = profile.id
+        } else {
+            self._name = State(initialValue: "")
+            self._serviceUUID = State(initialValue: "6E400001-B5A3-F393-E0A9-E50E24DCCA9E")
+            self._txCharacteristic = State(initialValue: "6E400002-B5A3-F393-E0A9-E50E24DCCA9E")
+            self._rxCharacteristic = State(initialValue: "6E400003-B5A3-F393-E0A9-E50E24DCCA9E")
+            self._writeType = State(initialValue: .withoutResponse)
+            self._encoding = State(initialValue: .utf8)
+            self.isEditing = false
+            self.profileId = UUID()
+        }
     }
-    
-    let mode: Mode
-    let onSave: (ProtocolProfile) -> Void
-    let onCancel: () -> Void
-    
-    @State private var name = ""
-    @State private var serviceUUID = ""
-    @State private var txCharacteristic = ""
-    @State private var rxCharacteristic = ""
-    @State private var writeType: WriteType = .withResponse
-    @State private var encoding: DataEncoding = .utf8
-    @State private var useFraming = false
-    @State private var startBytes = ""
-    @State private var endBytes = ""
-    @State private var maxPacketSize = "20"
-    @State private var commands: [String: CommandTemplate] = [:]
-    @State private var showingCommandEditor = false
-    @State private var editingCommand: String? = nil
     
     var body: some View {
         NavigationStack {
             Form {
                 Section(header: Text("Profile Information")) {
-                    TextField("Name", text: $name)
+                    TextField("Profile Name", text: $name)
                 }
                 
-                Section(header: Text("BLE Configuration")) {
+                Section(header: Text("Service")) {
                     TextField("Service UUID", text: $serviceUUID)
-                        .autocapitalization(.none)
-                        .disableAutocorrection(true)
+                        .font(.system(.body, design: .monospaced))
+                }
+                
+                Section(header: Text("Characteristics")) {
+                    TextField("TX Characteristic (Write)", text: $txCharacteristic)
+                        .font(.system(.body, design: .monospaced))
                     
-                    TextField("TX Characteristic UUID", text: $txCharacteristic)
-                        .autocapitalization(.none)
-                        .disableAutocorrection(true)
-                    
-                    TextField("RX Characteristic UUID (optional)", text: $rxCharacteristic)
-                        .autocapitalization(.none)
-                        .disableAutocorrection(true)
-                    
-                    Picker("Write Mode", selection: $writeType) {
+                    TextField("RX Characteristic (Notify)", text: $rxCharacteristic)
+                        .font(.system(.body, design: .monospaced))
+                }
+                
+                Section(header: Text("Write Type")) {
+                    Picker("Write Type", selection: $writeType) {
                         ForEach(WriteType.allCases) { type in
                             Text(type.rawValue).tag(type)
                         }
                     }
-                    
+                    .pickerStyle(.segmented)
+                }
+                
+                Section(header: Text("Encoding")) {
                     Picker("Encoding", selection: $encoding) {
                         ForEach(DataEncoding.allCases) { encoding in
                             Text(encoding.rawValue).tag(encoding)
                         }
                     }
-                }
-                
-                Section(header: Text("Framing")) {
-                    Toggle("Use framing", isOn: $useFraming)
-                    
-                    if useFraming {
-                        TextField("Start Bytes (Hex)", text: $startBytes)
-                            .autocapitalization(.none)
-                            .disableAutocorrection(true)
-                        
-                        TextField("End Bytes (Hex)", text: $endBytes)
-                            .autocapitalization(.none)
-                            .disableAutocorrection(true)
-                        
-                        TextField("Max Packet Size", text: $maxPacketSize)
-                            .keyboardType(.numberPad)
-                    }
-                }
-                
-                Section(header: Text("Commands")) {
-                    if commands.isEmpty {
-                        Text("No commands defined")
-                            .foregroundColor(.secondary)
-                    } else {
-                        ForEach(Array(commands.keys.sorted()), id: \.self) { key in
-                            if let command = commands[key] {
-                                HStack {
-                                    VStack(alignment: .leading) {
-                                        Text(key)
-                                            .font(.headline)
-                                        Text(command.description)
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                        Text(command.template)
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                    
-                                    Spacer()
-                                    
-                                    Button(action: {
-                                        editingCommand = key
-                                    }) {
-                                        Image(systemName: "pencil")
-                                    }
-                                }
-                            }
-                        }
-                        .onDelete { indexSet in
-                            let keys = Array(commands.keys.sorted())
-                            for index in indexSet {
-                                if index < keys.count {
-                                    commands.removeValue(forKey: keys[index])
-                                }
-                            }
-                        }
-                    }
-                    
-                    Button(action: {
-                        editingCommand = nil
-                        showingCommandEditor = true
-                    }) {
-                        Label("Add Command", systemImage: "plus")
-                    }
+                    .pickerStyle(.segmented)
                 }
             }
-            .navigationTitle(isEditMode ? "Edit Profile" : "New Profile")
+            .navigationTitle(isEditing ? "Edit Profile" : "New Profile")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
-                        onCancel()
+                        isPresented = false
                     }
                 }
                 
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         saveProfile()
+                        isPresented = false
                     }
                     .disabled(name.isEmpty || serviceUUID.isEmpty || txCharacteristic.isEmpty)
                 }
             }
-            .onAppear {
-                setupInitialValues()
-            }
-            .sheet(isPresented: $showingCommandEditor) {
-                CommandEditorView(
-                    mode: editingCommand == nil ? .create : .edit(editingCommand!, commands[editingCommand!]!),
-                    onSave: { key, command in
-                        commands[key] = command
-                        showingCommandEditor = false
-                        editingCommand = nil
-                    },
-                    onCancel: {
-                        showingCommandEditor = false
-                        editingCommand = nil
-                    }
-                )
-            }
         }
     }
     
-    private var isEditMode: Bool {
-        if case .edit = mode {
-            return true
-        }
-        return false
-    }
-    
-    private func setupInitialValues() {
-        if case .edit(let profile) = mode {
-            name = profile.name
-            serviceUUID = profile.serviceUUID
-            txCharacteristic = profile.txCharacteristic
-            rxCharacteristic = profile.rxCharacteristic ?? ""
-            writeType = profile.writeType
-            encoding = profile.encoding
-            
-            if let framing = profile.framing {
-                useFraming = true
-                startBytes = framing.startBytes?.hexString ?? ""
-                endBytes = framing.endBytes?.hexString ?? ""
-                maxPacketSize = framing.maxPacketSize != nil ? "\(framing.maxPacketSize!)" : "20"
-            } else {
-                useFraming = false
-            }
-            
-            commands = profile.commands
-        } else {
-            // Default values for new profiles
-            name = "New Profile"
-            serviceUUID = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E" // Example UUID
-            txCharacteristic = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E" // Example UUID
-            rxCharacteristic = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E" // Example UUID
-            writeType = .withoutResponse
-            encoding = .utf8
-            
-            // Standard commands
-            commands = [
+    private func saveProfile() {
+        let rxUUID = rxCharacteristic.isEmpty ? nil : rxCharacteristic
+        
+        let profile = ProtocolProfile(
+            id: profileId,
+            name: name,
+            serviceUUID: serviceUUID,
+            txCharacteristic: txCharacteristic,
+            rxCharacteristic: rxUUID,
+            writeType: writeType,
+            encoding: encoding,
+            framing: nil,
+            commands: [
                 "SEND_TEXT": CommandTemplate(
                     template: "{text}",
                     description: "Send text to glasses"
@@ -568,235 +620,17 @@ struct ProtocolProfileEditorView: View {
                     description: "Clear display"
                 )
             ]
-        }
-    }
-    
-    private func saveProfile() {
-        // Create framing object if enabled
-        let framing: Framing?
-        if useFraming {
-            framing = Framing(
-                startBytes: Data(hexString: startBytes),
-                endBytes: Data(hexString: endBytes),
-                maxPacketSize: Int(maxPacketSize) ?? 20
-            )
-        } else {
-            framing = nil
-        }
+        )
         
-        // Create the profile
-        let profile: ProtocolProfile
-        
-        if case .edit(let existingProfile) = mode {
-            profile = ProtocolProfile(
-                id: existingProfile.id,
-                name: name,
-                serviceUUID: serviceUUID,
-                txCharacteristic: txCharacteristic,
-                rxCharacteristic: rxCharacteristic.isEmpty ? nil : rxCharacteristic,
-                writeType: writeType,
-                encoding: encoding,
-                framing: framing,
-                commands: commands
-            )
-        } else {
-            profile = ProtocolProfile(
-                name: name,
-                serviceUUID: serviceUUID,
-                txCharacteristic: txCharacteristic,
-                rxCharacteristic: rxCharacteristic.isEmpty ? nil : rxCharacteristic,
-                writeType: writeType,
-                encoding: encoding,
-                framing: framing,
-                commands: commands
-            )
-        }
-        
-        onSave(profile)
+        bleManager.saveProfile(profile)
     }
 }
-
-// MARK: - Command Editor View
-
-struct CommandEditorView: View {
-    enum Mode {
-        case create
-        case edit(String, CommandTemplate)
-    }
-    
-    let mode: Mode
-    let onSave: (String, CommandTemplate) -> Void
-    let onCancel: () -> Void
-    
-    @State private var key = ""
-    @State private var template = ""
-    @State private var description = ""
-    
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section(header: Text("Command Name")) {
-                    TextField("Name (e.g. SEND_TEXT)", text: $key)
-                        .autocapitalization(.none)
-                        .disableAutocorrection(true)
-                }
-                
-                Section(header: Text("Template")) {
-                    TextEditor(text: $template)
-                        .frame(minHeight: 100)
-                    
-                    Text("Use {parameter} for placeholders")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                
-                Section(header: Text("Description")) {
-                    TextField("Description", text: $description)
-                }
-            }
-            .navigationTitle(isEditMode ? "Edit Command" : "New Command")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        onCancel()
-                    }
-                }
-                
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Save") {
-                        let command = CommandTemplate(
-                            template: template,
-                            description: description
-                        )
-                        onSave(key, command)
-                    }
-                    .disabled(key.isEmpty || template.isEmpty)
-                }
-            }
-            .onAppear {
-                setupInitialValues()
-            }
-        }
-        .presentationDetents([.medium, .large])
-    }
-    
-    private var isEditMode: Bool {
-        if case .edit = mode {
-            return true
-        }
-        return false
-    }
-    
-    private func setupInitialValues() {
-        if case .edit(let commandKey, let command) = mode {
-            key = commandKey
-            template = command.template
-            description = command.description
-        }
-    }
-}
-
-// MARK: - BLE Inspector View
-
-struct BLEInspectorView: View {
-    @EnvironmentObject private var bleManager: BLEManager
-    
-    var body: some View {
-        List {
-            Section(header: Text("Active Profile")) {
-                if let profile = bleManager.activeProfile {
-                    Text("Name: \(profile.name)")
-                    Text("Service UUID: \(profile.serviceUUID)")
-                    Text("TX Characteristic: \(profile.txCharacteristic)")
-                    if let rx = profile.rxCharacteristic {
-                        Text("RX Characteristic: \(rx)")
-                    }
-                    Text("Write mode: \(profile.writeType.rawValue)")
-                    Text("Encoding: \(profile.encoding.rawValue)")
-                    
-                    if let framing = profile.framing {
-                        Text("Framing: Yes")
-                        if let startBytes = framing.startBytes {
-                            Text("Start Bytes: \(startBytes.hexString)")
-                        }
-                        if let endBytes = framing.endBytes {
-                            Text("End Bytes: \(endBytes.hexString)")
-                        }
-                        if let maxSize = framing.maxPacketSize {
-                            Text("Max Packet Size: \(maxSize)")
-                        }
-                    } else {
-                        Text("Framing: No")
-                    }
-                } else {
-                    Text("No active profile")
-                }
-            }
-            
-            Section(header: Text("Connected Devices")) {
-                if bleManager.connectedDevices.isEmpty {
-                    Text("No connected devices")
-                } else {
-                    ForEach(bleManager.connectedDevices) { device in
-                        VStack(alignment: .leading) {
-                            Text(device.knownDevice.displayName)
-                                .font(.headline)
-                            Text("Role: \(device.knownDevice.role.rawValue)")
-                            Text("ID: \(device.knownDevice.identifier)")
-                            Text("RSSI: \(device.rssi) dBm")
-                            if let battery = device.batteryLevel {
-                                Text("Battery: \(battery)%")
-                            }
-                        }
-                    }
-                }
-            }
-            
-            Section(header: Text("Bluetooth Status")) {
-                Text("Status: \(bleStateString(bleManager.centralState))")
-                Text("Scanning: \(bleManager.isScanning ? "Yes" : "No")")
-                if let error = bleManager.lastError {
-                    Text("Last error: \(error.localizedDescription)")
-                        .foregroundColor(.red)
-                }
-            }
-        }
-        .navigationTitle("BLE Inspector")
-        .refreshable {
-            // Refresh the data
-        }
-    }
-    
-    private func bleStateString(_ state: CBManagerState) -> String {
-        switch state {
-        case .poweredOn:
-            return "Powered On"
-        case .poweredOff:
-            return "Powered Off"
-        case .resetting:
-            return "Reset"
-        case .unauthorized:
-            return "Not authorized"
-        case .unsupported:
-            return "Not supported"
-        case .unknown:
-            return "Unknown"
-        @unknown default:
-            return "Unknown"
-        }
-    }
-}
-
-// MARK: - Data Extension
-
-// Data extension has been moved to a separate file: DataExtension.swift
-
-// MARK: - Preview
 
 struct SettingsView_Previews: PreviewProvider {
     static var previews: some View {
         SettingsView()
             .environmentObject(AppState())
             .environmentObject(BLEManager())
+            .environmentObject(AppSettings())
     }
 }

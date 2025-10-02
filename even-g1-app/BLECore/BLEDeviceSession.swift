@@ -59,19 +59,29 @@ class BLEDeviceSession: NSObject {
             throw BLEError.characteristicNotFound
         }
         
+        // Validate characteristic properties
+        if !characteristic.properties.contains(.write) && !characteristic.properties.contains(.writeWithoutResponse) {
+            throw BLEError.characteristicNotWritable
+        }
+        
+        // Append newline for G1 glasses (protocol requirement)
+        let textWithNewline = text + "\n"
+        
         // Encode text according to profile
-        guard let data = encodeData(text, using: profile) else {
+        guard let data = encodeData(textWithNewline, using: profile) else {
             throw BLEError.encodingError
         }
         
-        // Check if we need to fragment the data
-        if let framing = profile.framing, let maxSize = framing.maxPacketSize, data.count > maxSize {
-            // Fragment the data
-            try await sendFragmentedData(data, characteristic: characteristic, writeType: profile.writeType.cbWriteType, framing: framing)
+        // Always use chunking with 20-byte MTU size for BLE 4.x/5.x compatibility
+        let mtu = 20
+        
+        // Fragment the data if needed
+        if data.count > mtu {
+            try await sendFragmentedData(data, characteristic: characteristic, writeType: .withoutResponse, mtu: mtu)
         } else {
             // Send data directly
             try await withCheckedThrowingContinuation { continuation in
-                writeData(data, to: characteristic, type: profile.writeType.cbWriteType) { result in
+                writeData(data, to: characteristic, type: .withoutResponse) { result in
                     switch result {
                     case .success:
                         continuation.resume()
@@ -180,32 +190,16 @@ class BLEDeviceSession: NSObject {
         }
     }
     
-    private func sendFragmentedData(_ data: Data, characteristic: CBCharacteristic, writeType: CBCharacteristicWriteType, framing: Framing) async throws {
-        let maxSize = framing.maxPacketSize ?? 20 
+    private func sendFragmentedData(_ data: Data, characteristic: CBCharacteristic, writeType: CBCharacteristicWriteType, mtu: Int = 20) async throws {
         var offset = 0
         
         while offset < data.count {
-            let endIndex = min(offset + maxSize, data.count)
+            let endIndex = min(offset + mtu, data.count)
             let chunk = data.subdata(in: offset..<endIndex)
-            
-            var packetData = Data()
-            
-            // Add start bytes if available
-            if let startBytes = framing.startBytes, offset == 0 {
-                packetData.append(startBytes)
-            }
-            
-            // Add chunk data
-            packetData.append(chunk)
-            
-            // Add end bytes if available
-            if let endBytes = framing.endBytes, endIndex == data.count {
-                packetData.append(endBytes)
-            }
             
             // Send the packet
             try await withCheckedThrowingContinuation { continuation in
-                writeData(packetData, to: characteristic, type: writeType) { result in
+                writeData(chunk, to: characteristic, type: writeType) { result in
                     switch result {
                     case .success:
                         continuation.resume()
@@ -215,9 +209,9 @@ class BLEDeviceSession: NSObject {
                 }
             }
             
-            // Wait briefly between packets to avoid overload
+            // Wait briefly between packets to avoid overload (3ms is good for most BLE devices)
             if endIndex < data.count {
-                try await Task.sleep(nanoseconds: 10_000_000) // 10ms
+                try await Task.sleep(nanoseconds: 3_000_000) // 3ms
             }
             
             offset = endIndex
@@ -244,8 +238,13 @@ class BLEDeviceSession: NSObject {
         
         peripheral.writeValue(data, for: characteristic, type: type)
         
-        // Log der gesendeten Daten
-        logger.debug("Daten gesendet: \(data.hexString)")
+        // Log the sent data
+        logger.debug("Data sent: \(data.hexString)")
+        
+        // If this is text data, try to log it as a string too
+        if let textString = String(data: data, encoding: .utf8) {
+            logger.info("Text sent: \"\(textString.trimmingCharacters(in: .whitespacesAndNewlines))\"")
+        }
     }
 }
 
@@ -299,6 +298,17 @@ extension BLEDeviceSession: CBPeripheralDelegate {
             
             logger.debug("Characteristic: \(characteristic.uuid), Properties: \(properties.joined(separator: ", "))")
             
+            // Check for G1 TX characteristic (6E400002-B5A3-F393-E0A9-E50E24DCCA9E)
+            if characteristic.uuid == CBUUID(string: "6E400002-B5A3-F393-E0A9-E50E24DCCA9E") {
+                logger.info("Found G1 TX characteristic")
+            }
+            
+            // Check for G1 RX characteristic (6E400003-B5A3-F393-E0A9-E50E24DCCA9E)
+            if characteristic.uuid == CBUUID(string: "6E400003-B5A3-F393-E0A9-E50E24DCCA9E") {
+                logger.info("Found G1 RX characteristic - enabling notifications")
+                peripheral.setNotifyValue(true, for: characteristic)
+            }
+            
             // Subscribe to notifications for RX characteristic if available
             if let profile = profile,
                let rxUUID = profile.rxCharacteristic.flatMap({ CBUUID(string: $0) }),
@@ -331,13 +341,40 @@ extension BLEDeviceSession: CBPeripheralDelegate {
         
         logger.debug("Data received: \(value.hexString)")
         
+        // Parse the data if it's from the G1 RX characteristic
+        if characteristic.uuid == CBUUID(string: "6E400003-B5A3-F393-E0A9-E50E24DCCA9E") {
+            let parser = G1DataParser()
+            if let packet = parser.parsePacket(value) {
+                logger.info("Parsed G1 packet: \(packet.description)")
+                
+                // Handle error responses to text messages
+                if packet.type == .response, 
+                   let isError = packet.payload["isError"] as? Bool, isError,
+                   let errorMessage = packet.payload["errorMessage"] as? String {
+                    logger.error("G1 error response: \(errorMessage)")
+                }
+                
+                // Handle battery updates
+                if packet.type == .battery, let batteryLevel = packet.payload["batteryLevel"] as? UInt8 {
+                    DispatchQueue.main.async {
+                        // Find the device status and update battery level
+                        if let deviceId = self.deviceId,
+                           let deviceManager = peripheral.delegate as? BLEManager,
+                           let deviceIndex = deviceManager.connectedDevices.firstIndex(where: { $0.id == deviceId }) {
+                            deviceManager.connectedDevices[deviceIndex].batteryLevel = Int(batteryLevel)
+                        }
+                    }
+                }
+            }
+        }
+        
         // Notify waiting requests
         for (_, completion) in pendingRequests {
             completion(.success(value))
         }
         pendingRequests.removeAll()
         
-        // Benachrichtige Abonnenten
+        // Notify subscribers
         notificationSubjects[characteristic.uuid]?.send(value)
     }
     
