@@ -358,8 +358,8 @@ extension BLEDeviceSession: CBPeripheralDelegate {
                 if packet.type == .battery, let batteryLevel = packet.payload["batteryLevel"] as? UInt8 {
                     DispatchQueue.main.async {
                         // Find the device status and update battery level
-                        if let deviceId = self.deviceId,
-                           let deviceManager = peripheral.delegate as? BLEManager,
+                        let deviceId = self.deviceId
+                        if let deviceManager = peripheral.delegate as? BLEManager,
                            let deviceIndex = deviceManager.connectedDevices.firstIndex(where: { $0.id == deviceId }) {
                             deviceManager.connectedDevices[deviceIndex].batteryLevel = Int(batteryLevel)
                         }
