@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Speech
 
 struct SubtitlesView: View {
     @StateObject private var subtitlesManager = SubtitlesManager()
